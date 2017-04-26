@@ -1,0 +1,1 @@
+﻿Não deveria criar aresta de controle para o printout

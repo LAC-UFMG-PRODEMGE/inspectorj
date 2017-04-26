@@ -1,0 +1,858 @@
+package br.ufmg.harmonia.inspectorj.util;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Stack;
+import java.util.Vector;
+
+import javax.imageio.ImageIO;
+import javax.media.MediaLocator;
+
+import org.graphstream.algorithm.randomWalk.Entity;
+import org.graphstream.algorithm.randomWalk.RandomWalk;
+import org.graphstream.algorithm.randomWalk.TabuEntity;
+import org.graphstream.graph.Edge;
+import org.graphstream.graph.Graph;
+import org.graphstream.graph.Node;
+import org.graphstream.graph.implementations.MultiGraph;
+import org.graphstream.stream.file.FileSinkImages;
+import org.graphstream.stream.file.FileSinkImages.LayoutPolicy;
+import org.graphstream.stream.file.FileSinkImages.OutputPolicy;
+import org.graphstream.stream.file.FileSinkImages.OutputType;
+import org.graphstream.stream.file.FileSinkImages.RendererType;
+import org.graphstream.stream.file.FileSinkImages.Resolution;
+import org.graphstream.stream.file.FileSinkImages.Resolutions;
+import org.graphstream.ui.graphicGraph.GraphPosLengthUtils;
+import org.graphstream.ui.graphicGraph.GraphicEdge;
+import org.graphstream.ui.graphicGraph.GraphicGraph;
+import org.graphstream.ui.spriteManager.Sprite;
+import org.graphstream.ui.spriteManager.SpriteManager;
+import org.graphstream.ui.swingViewer.DefaultView;
+import org.graphstream.ui.view.Viewer;
+
+import soot.G;
+import soot.Type;
+import soot.Value;
+import soot.tagkit.LineNumberTag;
+import soot.tagkit.SourceLnNamePosTag;
+import soot.tagkit.Tag;
+import br.ufmg.harmonia.inspectorj.util.holder.MethodHolder;
+import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie;
+import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie2;
+
+public class GraphSingleton extends MultiGraph {
+
+	private static GraphSingleton  myInstance;
+	private GraphicGraph copyGraphInstance;
+	private FileSinkImages fsi;
+	private List<Position> positionsAllNodes;
+	private List<Position> positionsTaintedNodes;
+	private List<MethodHolder> methodsOnGraph;
+	private String styleSheet;
+	private Map<Node,Object> map = new HashMap<Node,Object>(); 
+	private boolean movieCanceled = false;
+	//private DefaultView viewGraph;
+
+	private double step = 0;
+	private int indexColor = 0;
+	private String[] colors = new String[]{ "fill-color: rgb(255,255,0);",   //amarelo
+											"fill-color: rgb(0,0,255);",     //azul
+											"fill-color: rgb(0,255,0);",     //verde
+											"fill-color: rgb(255,28,174);",  //rosa temperado											
+											"fill-color: rgb(127,0,255);",   //Medium Slate Blue
+											"fill-color: rgb(173,234,234);", //turqueza
+											"fill-color: rgb(92,51,23);",  //chocolate
+											"fill-color: rgb(234,173,234);", //plum
+											"fill-color: rgb(255,165,0);",   //laranja
+											"fill-color: rgb(50,205,153);",  //aquamarine medio
+											"fill-color: rgb(165,128,100);",  //wood medio
+											"fill-color: rgb(216,216,191);", //wheat			 							
+											"fill-color: rgb(219,112,147);", //violeta vermelho medio 
+											"fill-color: rgb(79,47,79);",	 //violeta									   
+											"fill-color: rgb(217,217,243);", //quartz
+											"fill-color: rgb(140,23,23);",   //escarlata
+											"fill-color: rgb(159,95,159);",  //caqui
+											"fill-color: rgb(219,147,112);", //bronze
+											"fill-color: rgb(153,204,50);",  //amarelo esverdeado
+											"fill-color: rgb(107,35,142);",  //azul ardosia escuro
+											"fill-color: rgb(192,217,217);", //azul brilhante 
+											"fill-color: rgb(235,199,158);", //bronze claro
+											"fill-color: rgb(216,191,216);", //thistle
+											"fill-color: rgb(74,118,110);",  //verde cobre escuro
+											"fill-color: rgb(140,120,83);",  //bronze escuro
+											"fill-color: rgb(219,112,147);", //violeta vermelho medio
+											"fill-color: rgb(159,95,159);",  //azul violeta
+											"fill-color: rgb(168,168,168);", //cinza brilhante
+											"fill-color: rgb(147,112,219);", //orquidea medio
+											"fill-color: rgb(111,66,66);",   //salmao
+											"fill-color: rgb(56,176,222);",  //summer sky
+											"fill-color: rgb(219,219,112);", //goldenrod
+											"fill-color: rgb(66,66,111);",   //azul corn flower
+											"fill-color: rgb(255,0,255);",  //magenta
+											"fill-color: rgb(35,35,142);",   //azul marinho
+											"fill-color: rgb(255,0,0);"};    //vermelho
+	
+	private static Stack stack;
+	private static Stack stackIndex;
+
+	//Construtor
+	private GraphSingleton(String id) {
+		super(id);		
+	}
+	
+	//Cria uma instancia da classe
+	public synchronized static GraphSingleton getInstance(){
+		if(myInstance == null){
+			System.setProperty("org.graphstream.ui.renderer",//gs.ui.renderer,
+					"org.graphstream.ui.j2dviewer.J2DGraphRenderer");
+			
+			myInstance = new GraphSingleton("PDG");
+			
+//			myInstance.addAttribute("ui.quality");
+//			myInstance.addAttribute("ui.antialias");
+			myInstance.addAttribute("layout.stabilization-limit", 0.8);
+			myInstance.addAttribute("layout.quality", 2);
+			myInstance.addAttribute("layout.gravity", 0.07);
+			myInstance.addAttribute("layout.force", 1.2);
+			myInstance.addAttribute("tainted", false);
+			
+			myInstance.styleSheet = 
+					"graph { "
+							+ "fill-color: white; "
+						+ "}"
+							
+						+
+					"node { "
+						+ "stroke-mode: plain; "
+						+ "fill-mode: dyn-plain; "
+						+ "shape: rounded-box;"
+//						+ "size-mode: fit;"
+						+ "text-size: 12px; "
+						+ "text-visibility-mode: zoom-range;"
+						+ "text-visibility: 0, 0.5;"
+//						+ "text-background-mode: rounded-box;"
+						+ "text-alignment: above;"
+//						+ "padding: 10px, 10px;"
+					+ "}"
+					
+				 	+ "edge {"
+					+ "size: 1px;"
+						+ "arrow-shape: arrow; "
+						+ "arrow-size: 5px, 5px;"
+					+ "}"
+						
+					+ "edge.control {"
+					+ "size: 1px;"
+						+ "arrow-shape: arrow; "
+						+ "arrow-size: 5px, 5px;"
+						+ "stroke-mode: dots;"	
+//						+ "stroke-width: 1px;"
+//						+ "fill-mode: none;"
+//						+ "size: 0px;"
+					+ "}"
+					
+					+ "node.condicional { "
+						+ "shape: diamond;"
+						+"size: 15px;" 
+					+ "}"
+						
+					+ "node.printout { "
+						+ "shape: triangle;"
+						+"size: 15px;" 
+					+ "}"
+						
+					+ "node.secret { "
+						+ "shape: cross;"
+						+"size: 15px;" 
+					+ "}"
+						
+					+ "node.tainted { "
+						//+"size: 15px;" 
+						//+"fill-color: #CCC;" 
+						+"stroke-mode: plain;" 
+						//+"stroke-color: #999;" 
+						+"shadow-mode: plain;" 
+						+"shadow-width: 3px;" 
+						+"shadow-color: #F00;" 
+						+"shadow-offset: 0px;" 				
+					+ "}"
+						
+					+ "node.taintedSecret { "
+						+"size: 15px;" 
+						//+"fill-color: #CCC;" 
+						+"stroke-mode: plain;" 
+						//+"stroke-color: #999;" 
+						+"shadow-mode: plain;" 
+						+"shadow-width: 5px;" 
+						+"shadow-color: #F00;" 
+						+"shadow-offset: 0px;"
+						+ "shape: cross;"
+					+ "}"
+						
+					+ "node.taintedCondicional { "
+						+"size: 15px;" 
+						//+"fill-color: #CCC;" 
+						+"stroke-mode: plain;" 
+						//+"stroke-color: #999;" 
+						+"shadow-mode: plain;" 
+						+"shadow-width: 5px;" 
+						+"shadow-color: #F00;" 
+						+"shadow-offset: 0px;" 		
+						+ "shape: diamond;"
+					+"}"
+						
+					+ "node.taintedPrintout { "
+						+"size: 15px;" 
+						//+"fill-color: #CCC;" 
+						+"stroke-mode: plain;" 
+						//+"stroke-color: #999;" 
+						+"shadow-mode: plain;" 
+						+"shadow-width: 5px;" 
+						+"shadow-color: #F00;" 
+						+"shadow-offset: 0px;" 		
+						+ "shape: triangle;"
+					+"}"
+				  	
+					+ "edge.tainted {"
+						+ "fill-color: #F00;" 
+						+"shadow-mode: plain;" 
+						+"shadow-width: 3px;" 
+						+"shadow-color: #F00;" 
+						+"shadow-offset: 0px;"
+						+"shape:blob;"
+						+ "arrow-size: 8px, 8px;"
+					+ "}"
+						
+					+ "edge.taintedControl {"
+//						+ "fill-color: #F00;" 
+						+"stroke-mode: dots;"
+						+ "arrow-size: 8px, 8px;"
+					+ "}";
+
+			myInstance.addAttribute("ui.stylesheet", myInstance.styleSheet);
+			
+			myInstance.methodsOnGraph = new ArrayList<MethodHolder>();
+			
+			
+			//FileSinkImages arguments
+ 			OutputPolicy outputPolicy = OutputPolicy.BY_STEP; 
+			String prefix = "images/prefix_";
+			OutputType type = OutputType.PNG;
+//			Resolution resolution = Resolutions.NTSC;
+			Resolution resolution = Resolutions.HD720;
+			
+			myInstance.fsi = new FileSinkImages(prefix, type, resolution, outputPolicy);
+		
+			myInstance.fsi.setLayoutPolicy(LayoutPolicy.COMPUTED_FULLY_AT_NEW_IMAGE);
+			myInstance.fsi.setQuality(FileSinkImages.Quality.LOW);
+			myInstance.fsi.setStyleSheet(myInstance.styleSheet);
+			myInstance.fsi.setRenderer(RendererType.SCALA);
+      
+            
+            myInstance.addSink(myInstance.fsi);
+            
+            try {
+            	myInstance.fsi.begin(prefix);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+//            
+		}
+		
+		return myInstance;
+	}
+	
+	//GETS
+	//getStyleSheet
+	public synchronized String getStyleSheet(){
+		return styleSheet;						
+	}
+	//GetStep
+	public synchronized double getStep(){
+		return step++;						
+	}
+	
+	//GetFsi
+	public synchronized FileSinkImages getFsi(){
+		return this.fsi;
+	}
+	
+	//GetCopyGraphInstance
+	public synchronized GraphicGraph getCopyGraphInstance(){
+		return this.copyGraphInstance;
+	}
+	
+	//GetListPositionsAllNodes
+	public synchronized List<Position> getListPositionsAllNodes() {
+		return this.positionsAllNodes;
+	}
+	
+	//GetListPositionsTaintedNodes
+	public synchronized List<Position> getListPositionsTaintedNodes() {
+		return this.positionsTaintedNodes;
+	}
+	
+	public synchronized Map<Node, Object> getMap() {
+		return this.map;
+	}
+	
+	//
+	public synchronized boolean movieIsCanceled() {
+		return this.movieCanceled;
+	}
+	
+	public void setMovieIsCanceled(boolean value) {
+		this.movieCanceled = value;
+	}
+	
+	
+	//Methods
+	//Pega a proxima cor
+	public synchronized String getColor(){
+		if(indexColor >= 36){			
+			indexColor = 0;
+		}
+		return colors[indexColor++];						
+	}
+	
+	//Start the creation of images
+	public synchronized static void startOfCreatingOfImages(String prefix){
+		 try {
+				myInstance.fsi.begin(prefix);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+	}
+	
+	//Finish the creation of images
+	public synchronized static void endOfCreatingOfImages(){
+		try {
+			myInstance.fsi.end();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	//Cria uma aresta de uma lista de nodes para um node
+	public synchronized void createEdges(Value leftOp, Node localNode, List<Value> values, String prefixFull, String prefixShort, String currentColor, Map<String, Object> attributes, Map<Value, List<Type>> mapLocalType) {
+		boolean flag=false;
+		if (values != null) {
+			for (Value value : values) {
+				Node valueNode = createNode(value, prefixFull, prefixShort, currentColor, attributes);
+				// pode acontecer em uma função PHI de a variável receber ela mesma
+				// nesse caso, não faz nada.
+				if(!valueNode.getId().equals(localNode.getId())){					
+					createEdge(localNode, valueNode, false);
+					
+					//Se rightOp pode ter outro tipo
+					List<Type> list = mapLocalType.get(value);
+					if(list!=null){
+						mapLocalType.put(leftOp, list);
+						flag=true;
+					}
+					else if(flag){
+						List<Type> listLocalNode = mapLocalType.get(leftOp);
+						listLocalNode.add(value.getType());
+						mapLocalType.put(leftOp, listLocalNode);
+					}
+				}
+				
+			}
+		}
+	}
+	
+	public synchronized Edge createControlEdge(Node localNode, Node dependencyNode){
+		Edge edge = createEdge(localNode, dependencyNode, true);
+		edge.setAttribute("ui.class", "control");
+		edge.setAttribute("isControlEdge", true);
+		return edge;
+	}
+	
+	//A QUESTAO DE MARCAR COMO CONTAMINADO ESTA AQUI
+	//Cria uma aresta de um node para outro
+	public synchronized Edge createEdge(Node localNode, Node dependencyNode, Boolean isControl) {
+		String idEdge = localNode.getId() + "_" + dependencyNode.getId();
+		Edge edge = myInstance.getEdge(idEdge);
+		if (edge == null) {
+			edge = myInstance.addEdge(idEdge, dependencyNode, localNode, true);//.addAttribute("layout.weight", 2);
+			edge.addAttribute("tainted", false);
+		
+			myInstance.stepBegins(myInstance.getStep());
+			
+			if(!isControl){
+				Node taintedNode = InterproceduralResolver.getInstance().getMapUnitTaintedNode().get(dependencyNode.getId());
+				if(taintedNode != null) {
+					InterproceduralResolver.getInstance().getMapUnitTaintedNode().put(localNode.getId(), localNode);
+					InterproceduralResolver.getInstance().getMapUnitTaintedEdge().put(edge.getId(), edge);
+					
+					//talvez mudar isso
+					if(localNode.getAttribute("sink")) {
+						myInstance.setAttribute("tainted", true);
+						InterproceduralResolver.getInstance().getMapSinkNode().put(localNode.getId(), localNode);
+					}
+				}				
+			}
+		}
+		return edge;
+	}
+	
+	//Cria um node (id como Value)
+	public synchronized Node createNode(Value leftOp, String prefixFull, String prefixShort, String currentColor, Map<String, Object> attributes) {
+		String idNode = leftOp.toString();
+		return createNode(idNode, prefixFull, prefixShort, currentColor, attributes);		
+	}
+	
+	//Cria um node (id como String)
+	public synchronized Node createNode(String leftOp, String prefixFull, String prefixShort, String currentColor, Map<String, Object> attributes) {		
+		String leftOpFullName = prefixFull +": "+ leftOp;
+		String leftOpShortName = prefixShort +": "+ leftOp;
+		Node localNode = myInstance.getNode(leftOpFullName);
+		if (localNode == null) {
+			localNode = myInstance.addNode(leftOpFullName);
+			localNode.addAttribute("label", leftOpShortName);
+			localNode.addAttribute("ui.style", currentColor);
+			//localNode.addAttribute("text-background-color", currentColor);
+			localNode.addAttribute("layout.weight", 2);
+			localNode.addAttribute("condicional", false);
+			localNode.addAttribute("secret", false);
+			localNode.addAttribute("printout", false);
+			localNode.addAttribute("sink", false);
+			localNode.addAttribute("tainted", false);
+			
+			myInstance.stepBegins(myInstance.getStep());
+		}
+		if(attributes!=null){
+			
+			if(GraphSingleton.getInstance().map.get(localNode) == null){
+				List<Tag> tags = (List<Tag>) attributes.get("tags");
+				if(tags!=null){
+					Tag tag = tags.get(0);
+					if(!(tag instanceof LineNumberTag)){
+						SourceLnNamePosTag posTag = (SourceLnNamePosTag) tag;
+						Integer line = posTag.startLn();
+						String lineNode = "Linha: Java: "+line.toString()+"";
+						
+						Map<String, Object> map = new HashMap<String, Object>();
+						map.put("tags", lineNode);
+						
+						localNode.addAttributes(map);
+						
+						GraphSingleton.getInstance().map.put(localNode, attributes.get("tags"));
+					}				
+				}				
+			}
+			
+		}
+		
+		return localNode;
+	}
+	
+	public List<MethodHolder> getMethodsOnGraph() {
+		return methodsOnGraph;
+	}
+
+	public void setMethodsOnGraph(List<MethodHolder> methodsOnGraph) {
+		this.methodsOnGraph = methodsOnGraph;
+	}
+
+	
+	//Pega a posicao de um node no CopyGraph
+	public synchronized void getPositionOneNode(Node node, List<Position> listPositions) {
+		double[] xyz = GraphPosLengthUtils.nodePosition(node);
+	
+		Position position = new Position(xyz[0], xyz[1], xyz[2]);
+		listPositions.add(position);
+		
+		//Seta a posicao dos nodes no grafo original
+		String id = node.getId();
+		Node node2 = myInstance.getNode(id);
+		node2.setAttribute("xyz", xyz[0], xyz[1], xyz[2]);
+	}
+	
+	//Cria uma lista com a posicao de todos os nodes do CopyGraph
+	public synchronized void getPositionsAllNodes() {
+		Iterable<? extends Node> eachNode = copyGraphInstance.getEachNode();
+		this.positionsAllNodes = new ArrayList<Position>();
+		
+		for(Node node: eachNode){
+			getPositionOneNode(node, positionsAllNodes);
+		}
+	}
+	
+	//Pega a posicao do primeiro node contaminado
+	public synchronized void getPositionsTaintedNodes(DefaultView view) {
+		//Pega o node da varivável secreta
+		ConfigProperties instance = ConfigProperties.getInstance();
+		String classe = instance.getString("fonte.classe");
+		String metodo = instance.getString("fonte.metodo");
+		String  variavelSecreta = instance.getString("fonte");
+		
+		Node node = copyGraphInstance.getNode(classe+"-"+metodo+": "+variavelSecreta);
+		Node realNode = getNode(classe+"-"+metodo+": "+variavelSecreta);
+		positionsTaintedNodes = new ArrayList<Position>();
+		stack = new Stack();
+		stackIndex = new Stack();
+		
+		//Coloca no array
+		getPositionOneNode(node, positionsTaintedNodes);
+		System.out.println(variavelSecreta);
+		//Coloca na pilha
+		stack.push(node);
+		stackIndex.push(0);
+		//Foca nos proximos nodes
+		getNextTaintedNode(node, realNode);	
+	}
+	
+	//Pega a posicao dos proximos nodes contaminados
+	public synchronized void getNextTaintedNode(Node node, Node realNode) {
+		
+		if(realNode.getAttribute("tainted")){
+			
+			Iterable<Edge> eachLeavingEdge = node.getEachLeavingEdge();
+			for(Edge edge : eachLeavingEdge) {
+				GraphicEdge graphicEdge = (GraphicEdge)edge;	
+				if(graphicEdge.from.equals(node)){
+					if((Integer)stackIndex.peek() >= 1) {
+						getPositionOneNode(node, positionsTaintedNodes);
+						System.out.println(node.getId());
+					}
+					if(edge.getAttribute("ui.class") != "taintedControl" && edge.getAttribute("ui.class") != "control") {
+						
+						Edge taintedEdge = InterproceduralResolver.getInstance().mapUnitTaintedEdge.get(edge.getId());
+						if(taintedEdge != null) {
+							if(taintedEdge.getAttribute("tainted")){
+								Node targetNode = edge.getTargetNode();
+								Node nextNode = copyGraphInstance.getNode(targetNode.getId());
+								realNode = getNode(targetNode.getId());
+								
+								getPositionOneNode(nextNode, positionsTaintedNodes);
+								System.out.println(nextNode.getId());
+								stack.push(nextNode);
+								int aux = (Integer) stackIndex.peek();
+								aux++;
+								stackIndex.pop();
+								stackIndex.push(aux);
+								
+								stackIndex.push(0);
+								getNextTaintedNode(nextNode, realNode);		
+							}
+						}	
+					}			
+				}		
+			}
+			Object n = stack.pop();
+			stackIndex.pop();
+			Node x = (Node) n;
+			getPositionOneNode(x, positionsTaintedNodes);
+			System.out.println(x.getId());
+		}
+	}
+	
+	//Adaptação do Tracking Example do graph stream
+	public synchronized void tracking(final Viewer viewer, final DefaultView view){
+		//Cria o CopyGraph
+		copyGraphInstance = viewer.getGraphicGraph();
+	
+		//Salva a posicao de todos os nodes do grafo - ok
+		getPositionsAllNodes();
+			
+		//Salva as posicoes, em ordem, dos nodes contaminados - ok
+		getPositionsTaintedNodes(view);
+		
+		//Tracking
+		trackingLeHavre(viewer);
+	}
+	
+	 public synchronized void trackingLeHavre(final Viewer viewer){
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		FileSinkImages images = myInstance.getFsi();
+	
+		//FileSinkImages arguments - começa a criar as imagens	
+		myInstance.startOfCreatingOfImages("tracking/images/prefix_");
+
+		//Pega o menor x e y e o maior x e y - ok
+		double xmin, xmax, ymin, ymax;
+		xmin = ymin = Double.MAX_VALUE;
+		xmax = ymax = Double.MIN_VALUE;
+		
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		for (int i=0; i<positionsAllNodes.size();i++) {
+
+			double[] xy = {positionsAllNodes.get(i).x, positionsAllNodes.get(i).y};
+
+			xmin = Math.min(xmin, xy[0]);
+			ymin = Math.min(ymin, xy[1]);
+			xmax = Math.max(xmax, xy[0]);
+			ymax = Math.max(ymax, xy[1]);
+			
+			//testa se a criação do video foi cancelada
+			if(movieIsCanceled()){
+				myInstance.endOfCreatingOfImages();
+				return;
+			}
+		}
+		
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		//seta o centro da tela
+		images.setViewCenter((xmax + xmin) / 2.0, (ymax + ymin) / 2.0);
+		images.setViewPercent(1);
+	
+		//move(x: centro da tela -> primeiro x| y: centro da tela -> primeiro y)
+		MoveCenterView move = new MoveCenterView(images, positionsTaintedNodes.get(0).x, positionsTaintedNodes.get(0).y, 30, true);
+		
+		//zoom (100% -> 25%)
+		DynamicCenterViewZoom zoom = new DynamicCenterViewZoom(images, 0.25, 30, true);
+		
+		//testa se foi cancelado
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		//cria imagens do grafo na posicao inicial
+ 		for (int i = 0; i < 30; i++) {
+ 			myInstance.stepBegins(myInstance.getStep());
+ 			if(movieIsCanceled()){
+ 				myInstance.endOfCreatingOfImages();
+ 				return;
+ 			}
+		}
+		
+ 		//testa se a criação do video foi cancelada
+ 		if(movieIsCanceled()){
+ 			myInstance.endOfCreatingOfImages();
+			return;
+		}
+ 		
+ 		//vai andando do centro pro primeiro nó
+		for (int i = 0; i < 30; i++) {			
+			move.next();
+			zoom.nextValue();
+			myInstance.stepBegins(myInstance.getStep());
+			
+			//testa se a criação do video foi cancelada
+			if(movieIsCanceled()){
+				myInstance.endOfCreatingOfImages();
+				return;
+			}
+		}
+		
+		//CODIGO NOVO
+		for(int i = 1; i < positionsTaintedNodes.size(); i++){
+			move = new MoveCenterView(images, positionsTaintedNodes.get(i).x, positionsTaintedNodes.get(i).y, 30, true);
+			
+			for (int j = 0; j < 30; j++) {			
+				move.next(); 
+				//zoom.nextValue();
+				myInstance.stepBegins(myInstance.getStep());
+				
+				//testa se a criação do video foi cancelada
+				if(movieIsCanceled()){
+					myInstance.endOfCreatingOfImages();
+					return;
+				}
+			}
+			images.setViewCenter(move.x.value, move.y.value);
+			
+//			if((positionsTaintedNodes.get(i).x == positionsTaintedNodes.get(i+1).x) && (positionsTaintedNodes.get(i).y == positionsTaintedNodes.get(i+1).y)){
+//				i++;
+//			}
+		}
+		
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		//seta para voltar pra 100% de zoom
+		move = new MoveCenterView(images, (xmax + xmin) / 2.0, (ymax + ymin) / 2.0, 30, true);
+		
+		zoom = new DynamicCenterViewZoom(images, 1, 30, true);
+
+		//cria imagens do grafo do ultimo nó para o centro da tela
+		for (int i = 0; i < 30; i++) {
+			move.next();
+			zoom.nextValue();
+			myInstance.stepBegins(myInstance.getStep());
+			
+			//testa se a criação do video foi cancelada
+			if(movieIsCanceled()){
+				myInstance.endOfCreatingOfImages();
+				return;
+			}
+		}
+		
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		//cria imagens do grafo na posicao final
+		for (int i = 0; i < 30; i++) {
+			//testa se a criação do video foi cancelada
+			if(movieIsCanceled()){
+				myInstance.endOfCreatingOfImages();
+				return;
+			}
+			myInstance.stepBegins(myInstance.getStep());
+		}
+		
+		//testa se a criação do video foi cancelada
+		if(movieIsCanceled()){
+			myInstance.endOfCreatingOfImages();
+			return;
+		}
+		
+		myInstance.endOfCreatingOfImages();
+		
+		//Cria o video
+		JpegImagesToMovie2 imageToMovie = new JpegImagesToMovie2();
+		
+		ConfigProperties configProperties = ConfigProperties.getInstance();
+
+		
+		File directory = new File("C:/Prodemge/workspaces/workspace-kepler/inspectorj/tracking/images");
+		File[] listFiles = directory.listFiles();
+		Vector<String> inFiles = new Vector<String>();
+		String firstFile = null;
+		for (File file : listFiles) {
+			if(file.isFile() && file.getName().toUpperCase().endsWith("PNG")){
+				inFiles.add(file.getAbsolutePath());
+				if(firstFile == null){
+					firstFile = file.getAbsolutePath();
+				}
+			}
+		}
+
+		
+		try {
+			BufferedImage bufferedImage = ImageIO.read(new File(firstFile));
+			
+			int width = bufferedImage.getWidth();
+			int height = bufferedImage.getHeight();
+			int frameRate = 30;
+			
+			
+			MediaLocator oml;
+			
+			if ((oml = JpegImagesToMovie2.createMediaLocator("file:"+configProperties.getString("diretorio.saida")+"/movie.mov")) == null) {
+				System.err.println("Cannot build media locator ");
+				System.exit(0);
+			}
+
+			imageToMovie.doIt(width, height, frameRate, inFiles, oml);
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		//fim da criaçao do video
+	}
+	
+	static final double atanp10 = Math.atan(10);
+	static final double atanm10 = Math.atan(-10);
+	
+	//Method
+	public static double getArctanVariation(double min, double x, double max) {
+		double d = -10 + 20 * (x - min) / (max - min);
+		d = Math.atan(d);
+		d = (d - atanm10) / (atanp10 - atanm10);
+		return d;
+	}
+	
+	//Class MoveCenterView
+	public static class MoveCenterView {
+		DynamicAttribute x;
+		DynamicAttribute y;
+		FileSinkImages view;
+
+		public MoveCenterView(FileSinkImages view, double x, double y, int length, boolean arctan) {
+			this.x = new DynamicAttribute(view.getViewCenter().x, x, length,arctan);
+			this.y = new DynamicAttribute(view.getViewCenter().y, y, length,arctan);
+			this.view = view;
+		}
+
+		//falta aqui
+		public void next() {
+			x.nextValue();
+			y.nextValue();
+
+			view.setViewCenter(x.value, y.value);
+		}
+	}
+	
+	//Class DynamicAttribute
+	public static class DynamicAttribute {
+		double from;
+		double to;
+		double length;
+		boolean arctan;
+		
+		double step;
+		double value;
+
+		public DynamicAttribute(double from, double to, double length,boolean arctan) {
+			this.from = from;
+			this.to = to;
+			this.length = length;
+			this.arctan = arctan;
+		}
+
+		public void nextValue() {
+			double d;
+
+			if (step > length)
+				return;
+
+			if (arctan)
+				d = getArctanVariation(0, step, length);
+			else
+				d = step / length;
+
+			step++;
+
+			d = d * (to - from) + from;
+			setValue(d);
+		}
+		
+		public void setValue(double value) {
+			this.value = value;
+		}
+	}
+	
+	//Class
+	public static class DynamicCenterViewZoom extends DynamicAttribute {
+		FileSinkImages view;
+
+		public DynamicCenterViewZoom(FileSinkImages view, double to, double length, boolean arctan) {
+			super(view.getViewPercent(), to, length, arctan);
+			this.view = view;
+		}
+		
+		public void setValue(double value) {
+			view.setViewPercent(value);
+		}
+	}
+}

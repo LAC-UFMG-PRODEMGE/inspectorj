@@ -1,0 +1,2 @@
+﻿Arrumar o teste para fazer a análise de ponteiros e ver se item3=item2
+Acho que nao vai pegar e vai ter que fazer a analise
