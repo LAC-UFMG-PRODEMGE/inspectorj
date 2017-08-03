@@ -150,23 +150,6 @@ public class InspectorJWin extends JFrame {
 	private void appendControlComponents(final Viewer viewer, final DefaultView view, final JFrame frame) {
 		JPanel controlPanel = new JPanel(new FlowLayout());
 
-		//Botão de gerar o vídeo
-		JButton buttonGerarVideo = new JButton("Gerar vídeo");
-		buttonGerarVideo.addActionListener(new ActionListener() {
-
-			public void actionPerformed(ActionEvent e) {
-				//Se o grafo estiver contaminado, gera o video
-				if(GraphSingleton.getInstance().getAttribute("tainted")){
-					
-					new CreateMovieProgressBar(viewer, view, frame);	
-				}
-				else{
-					//mostrar uma mensagem dizendo que não existe contaminação
-					JFrame frame = new JFrame();
-					JOptionPane.showMessageDialog(frame,"O programa é isócrono! Não existe falha. ");
-				}				
-			}
-		});
 		
 		//Botão de tirar print
 		JButton buttonTirarPrint = new JButton("Salvar como imagem");
@@ -238,8 +221,30 @@ public class InspectorJWin extends JFrame {
 
 		Label labelSalvar = new Label("Clique para gerar vídeo mostrando a contaminação");
 		controlPanel.add(labelSalvar);
+		
+		
+		//Botão de gerar o vídeo		
+		if(GraphSingleton.getInstance().isHabilitarVideo()){			
+			JButton buttonGerarVideo = new JButton("Gerar vídeo");
+			buttonGerarVideo.addActionListener(new ActionListener() {
+				
+				public void actionPerformed(ActionEvent e) {
+					//Se o grafo estiver contaminado, gera o video
+					if(GraphSingleton.getInstance().getAttribute("tainted")){
+						
+						new CreateMovieProgressBar(viewer, view, frame);	
+					}
+					else{
+						//mostrar uma mensagem dizendo que não existe contaminação
+						JFrame frame = new JFrame();
+						JOptionPane.showMessageDialog(frame,"O programa é isócrono! Não existe falha. ");
+					}				
+				}
+			});
+			controlPanel.add(buttonGerarVideo);
+		}
 
-		controlPanel.add(buttonGerarVideo);
+
 		controlPanel.add(buttonTirarPrint);
 		controlPanel.add(buttonHabilitarAutoLayout);
 		controlPanel.add(buttonDesabilitarAutoLayout);

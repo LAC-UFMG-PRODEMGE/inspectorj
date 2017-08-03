@@ -1,11 +1,13 @@
 package br.ufmg.harmonia.inspectorj;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
@@ -32,6 +34,7 @@ import br.ufmg.harmonia.inspectorj.util.ForeLayoutRender;
 import br.ufmg.harmonia.inspectorj.util.GraphSingleton;
 import br.ufmg.harmonia.inspectorj.util.InspectorJWin;
 import br.ufmg.harmonia.inspectorj.util.InterproceduralResolver;
+import br.ufmg.harmonia.inspectorj.util.StatisticsUtil;
 import br.ufmg.harmonia.inspectorj.util.ViewerMouseEvents;
 
 
@@ -45,12 +48,7 @@ public class InspectorSTPMain {
 	 */
 	public static void main(String[] args) {
 	
-		String classpath = "/C:/Prodemge/jdks/jdk1.7.0_55/jre/lib/rt.jar;"
-						 + "/C:/Prodemge/workspaces/workspace-kepler/inspectorj/src/main/java;"
-						 + "/C:/Prodemge/workspaces/workspace-kepler/inspectorj/sootOutput;"
-					     + "/C:/Prodemge/workspaces/workspace-kepler/inspectorj/src/main/resources";
 		
-		//System.setProperty("org.graphstream.ui.renderer", "org.graphstream.ui.j2dviewer.J2DGraphRenderer");
 		
 		
 		Pack stp = PackManager.v().getPack(SHIMPLE_TRANSFORMER_PACK);
@@ -60,7 +58,6 @@ public class InspectorSTPMain {
 		
 		
 		Options.v().set_verbose(false);
-		Options.v().set_validate(true);
 		Options.v().set_whole_program(false);
 		Options.v().set_app(true);
 		Options.v().set_via_shimple(true);
@@ -74,12 +71,19 @@ public class InspectorSTPMain {
 		Options.v().set_whole_shimple(false);
 		Options.v().set_write_local_annotations(true);
 		
+		
 		Options.v().setPhaseOption("jb","use-original-names:true");
 		Options.v().setPhaseOption("jb","preserve-source-annotations:true");
 		
 		Options.v().setPhaseOption("jj","use-original-names:true");
 
 		Options.v().set_keep_line_number(true);
+		Options.v().set_verbose(false);
+		//Options.v().set
+		Options.v().set_asm_backend(true);
+		Options.v().set_ignore_resolution_errors(true);
+//		Options.v().set_ignore_classpath_errors(true);
+		//Options.v().set_i
 
 		
 		JFileChooser fileChooser = new JFileChooser();
@@ -139,6 +143,9 @@ public class InspectorSTPMain {
 			nomeDaClasse = configProperties.getString("fonte.classe");
 		
 		
+		StatisticsUtil statistics = StatisticsUtil.getInstance();
+		statistics.setTimeStart(new Date());
+		
 		SootClass c = Scene.v().forceResolve(nomeDaClasse, SootClass.BODIES);
 		/*Options.v().set_src_prec(Options.src_prec_J); 
 		Options.v().set_output_dir("C:Prodemge/workspaces/workspace-kepler/inspectorj/sootOutput");
@@ -178,10 +185,56 @@ public class InspectorSTPMain {
 		interResolver.selectTaintedNodes();
 		interResolver.colorGraph();			
 		
+		
+		
 		//Termina a criaçao das imagens
 		graph.endOfCreatingOfImages();
+		
+		
+		statistics.setTimeEnd(new Date());
 		buildWindow();
-		System.out.println("---------Finished");
+		PrintStream out = System.out;
+		out.println("---------Finished");
+		
+
+
+//		SimpleDateFormat formatador= new SimpleDateFormat("HH:mm:ss.SSS");
+		
+		Set<String> classes = statistics.getMethodsAndClasses();
+		out.println("classe/metodo,tempo,qtdenodos,qtdenodoscontaminados,command,print,conditional");
+		for(String classe: classes){
+			out.print(classe);
+			out.print(",");
+			Date dateInicio = statistics.getMethodTimeStart().get(classe);
+//			out.print(formatador.format(dateInicio));
+//			out.print(",");
+			Date dateFim = statistics.getMethodTimeEnd().get(classe);
+//			out.print(formatador.format(dateFim));
+//			out.print(",");
+			long duration = dateFim.getTime()-dateInicio.getTime();
+			out.print(duration);
+			out.print(",");
+			Integer totalNode = statistics.getNumberOfNode().get(classe);
+			out.print(totalNode==null?0:totalNode);
+			out.print(",");
+			Integer totalTaintedNode = statistics.getNumberOfTaintedNode().get(classe);
+			out.print(totalTaintedNode==null?0:totalTaintedNode);
+			out.print(",");
+			Integer totalCommandNode = statistics.getNumberOfCommandNode().get(classe);
+			out.print(totalCommandNode==null?0:totalCommandNode);
+			out.print(",");
+			Integer totalPrintoutNode = statistics.getNumberOfPrintoutNode().get(classe);
+			out.print(totalPrintoutNode==null?0:totalPrintoutNode);
+			out.print(",");
+			Integer totalConditionalNode = statistics.getNumberOfConditionalNode().get(classe);
+			out.println(totalConditionalNode==null?0:totalConditionalNode);
+		}		
+		
+		
+		out.println("---------Finished");
+		out.print("Total de classe analisadas: ");out.println(statistics.getOnlyClasses().size());
+		out.print("Total de metodos analisados: ");out.print(classes.size());
+	
 	}
 
 
@@ -248,6 +301,12 @@ public class InspectorSTPMain {
 		
 	
 		SpringBox layout = new SpringBox(false, new Random(new Date().getTime()));
+//		final Eades84Layout layout = new Eades84Layout();
+//		layout.setQuality(0);
+//		layout.setForce(1);
+//		layout.setGravityFactor(0);
+//		layout.setStabilizationLimit(0);
+//		LinLog newLayout = new LinLog(false);
 
 		viewer.enableAutoLayout(layout);
 
@@ -281,9 +340,10 @@ public class InspectorSTPMain {
 			public void run() {
 				while (true) {
 				try {
-					Thread.sleep(500);
-					Thread.sleep(500);
+					Thread.sleep(20);
+					//Thread.sleep(500);
 					pipe.blockingPump();
+//					layout.compute();
 				} catch (InterruptedException e) {
 					System.exit(0);
 				}

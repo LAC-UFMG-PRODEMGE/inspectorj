@@ -540,7 +540,7 @@ public class JpegImagesToMovie3 implements ControllerListener,
 
     ///////////////////////////////////////////////
     //
-    // Inner classes.
+    // Inner methodsAndClasses.
     ///////////////////////////////////////////////
 
 

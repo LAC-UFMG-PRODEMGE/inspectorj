@@ -41,6 +41,7 @@ import soot.Value;
 import soot.tagkit.LineNumberTag;
 import soot.tagkit.SourceLnNamePosTag;
 import soot.tagkit.Tag;
+import br.ufmg.harmonia.inspectorj.util.holder.LocalTypeHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodHolder;
 import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie;
 import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie2;
@@ -56,6 +57,7 @@ public class GraphSingleton extends MultiGraph {
 	private String styleSheet;
 	private Map<Node,Object> map = new HashMap<Node,Object>(); 
 	private boolean movieCanceled = false;
+	private boolean habilitarVideo = false;
 	//private DefaultView viewGraph;
 
 	private double step = 0;
@@ -115,8 +117,8 @@ public class GraphSingleton extends MultiGraph {
 			
 //			myInstance.addAttribute("ui.quality");
 //			myInstance.addAttribute("ui.antialias");
-			myInstance.addAttribute("layout.stabilization-limit", 0.8);
-			myInstance.addAttribute("layout.quality", 2);
+			myInstance.addAttribute("layout.stabilization-limit", 0.1);
+			myInstance.addAttribute("layout.quality", 0.1);
 			myInstance.addAttribute("layout.gravity", 0.07);
 			myInstance.addAttribute("layout.force", 1.2);
 			myInstance.addAttribute("tainted", false);
@@ -164,6 +166,11 @@ public class GraphSingleton extends MultiGraph {
 					+ "node.printout { "
 						+ "shape: triangle;"
 						+"size: 15px;" 
+					+ "}"
+
+					+ "node.commandinjection { "
+						+ "shape: circle;"
+						+ "size: 15px;"
 					+ "}"
 						
 					+ "node.secret { "
@@ -217,6 +224,16 @@ public class GraphSingleton extends MultiGraph {
 						+"shadow-offset: 0px;" 		
 						+ "shape: triangle;"
 					+"}"
+
+					+ "node.taintedCommandinjection { "
+						+ "size: 15px;"
+						// +"fill-color: #CCC;"
+						+ "stroke-mode: plain;"
+						// +"stroke-color: #999;"
+						+ "shadow-mode: plain;" + "shadow-width: 5px;"
+						+ "shadow-color: #F00;" + "shadow-offset: 0px;"
+						+ "shape: circle;" 
+					+ "}"
 				  	
 					+ "edge.tainted {"
 						+ "fill-color: #F00;" 
@@ -236,30 +253,32 @@ public class GraphSingleton extends MultiGraph {
 
 			myInstance.addAttribute("ui.stylesheet", myInstance.styleSheet);
 			
-			myInstance.methodsOnGraph = new ArrayList<MethodHolder>();
+			myInstance.methodsOnGraph = new Vector<MethodHolder>();
 			
 			
 			//FileSinkImages arguments
- 			OutputPolicy outputPolicy = OutputPolicy.BY_STEP; 
-			String prefix = "images/prefix_";
-			OutputType type = OutputType.PNG;
+			if(myInstance.habilitarVideo == true){				
+				OutputPolicy outputPolicy = OutputPolicy.BY_STEP; 
+				String prefix = "images/prefix_";
+				OutputType type = OutputType.PNG;
 //			Resolution resolution = Resolutions.NTSC;
-			Resolution resolution = Resolutions.HD720;
-			
-			myInstance.fsi = new FileSinkImages(prefix, type, resolution, outputPolicy);
-		
-			myInstance.fsi.setLayoutPolicy(LayoutPolicy.COMPUTED_FULLY_AT_NEW_IMAGE);
-			myInstance.fsi.setQuality(FileSinkImages.Quality.LOW);
-			myInstance.fsi.setStyleSheet(myInstance.styleSheet);
-			myInstance.fsi.setRenderer(RendererType.SCALA);
-      
-            
-            myInstance.addSink(myInstance.fsi);
-            
-            try {
-            	myInstance.fsi.begin(prefix);
-			} catch (IOException e) {
-				e.printStackTrace();
+				Resolution resolution = Resolutions.HD720;
+				
+				myInstance.fsi = new FileSinkImages(prefix, type, resolution, outputPolicy);
+				
+				myInstance.fsi.setLayoutPolicy(LayoutPolicy.COMPUTED_FULLY_AT_NEW_IMAGE);
+				myInstance.fsi.setQuality(FileSinkImages.Quality.LOW);
+				myInstance.fsi.setStyleSheet(myInstance.styleSheet);
+				myInstance.fsi.setRenderer(RendererType.SCALA);
+				
+				
+				myInstance.addSink(myInstance.fsi);
+				
+				try {
+					myInstance.fsi.begin(prefix);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 //            
 		}
@@ -331,15 +350,17 @@ public class GraphSingleton extends MultiGraph {
 	
 	//Finish the creation of images
 	public synchronized static void endOfCreatingOfImages(){
-		try {
-			myInstance.fsi.end();
-		} catch (IOException e) {
-			e.printStackTrace();
+		if(myInstance.habilitarVideo){			
+			try {
+				myInstance.fsi.end();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	
 	//Cria uma aresta de uma lista de nodes para um node
-	public synchronized void createEdges(Value leftOp, Node localNode, List<Value> values, String prefixFull, String prefixShort, String currentColor, Map<String, Object> attributes, Map<Value, List<Type>> mapLocalType) {
+	public synchronized void createEdges(Value leftOp, Node localNode, List<Value> values, String prefixFull, String prefixShort, String currentColor, Map<String, Object> attributes, Map<Value, LocalTypeHolder> mapLocalType) {
 		boolean flag=false;
 		if (values != null) {
 			for (Value value : values) {
@@ -350,16 +371,20 @@ public class GraphSingleton extends MultiGraph {
 					createEdge(localNode, valueNode, false);
 					
 					//Se rightOp pode ter outro tipo
-					List<Type> list = mapLocalType.get(value);
-					if(list!=null){
-						mapLocalType.put(leftOp, list);
-						flag=true;
+					LocalTypeHolder holder = mapLocalType.get(value);
+					if(holder!=null){						
+						List<Type> list = holder.getTypes();
+						if(list!=null){
+							mapLocalType.put(leftOp, holder);
+							flag=true;
+						}else if(flag){
+							LocalTypeHolder holderLeftOp = mapLocalType.get(leftOp);
+							List<Type> listLocalNode = holderLeftOp.getTypes();
+							listLocalNode.add(value.getType());
+							mapLocalType.put(leftOp, holderLeftOp);
+						}
 					}
-					else if(flag){
-						List<Type> listLocalNode = mapLocalType.get(leftOp);
-						listLocalNode.add(value.getType());
-						mapLocalType.put(leftOp, listLocalNode);
-					}
+					
 				}
 				
 			}
@@ -413,12 +438,21 @@ public class GraphSingleton extends MultiGraph {
 		String leftOpShortName = prefixShort +": "+ leftOp;
 		Node localNode = myInstance.getNode(leftOpFullName);
 		if (localNode == null) {
+			
+			Map<String, Integer> numberOfNode = StatisticsUtil.getInstance().getNumberOfNode();
+			Integer qtde = numberOfNode.get(prefixFull);
+			numberOfNode.put(prefixFull, (qtde==null)?1:qtde+1);
+			
+			
+			
+			
 			localNode = myInstance.addNode(leftOpFullName);
 			localNode.addAttribute("label", leftOpShortName);
 			localNode.addAttribute("ui.style", currentColor);
 			//localNode.addAttribute("text-background-color", currentColor);
 			localNode.addAttribute("layout.weight", 2);
 			localNode.addAttribute("condicional", false);
+			localNode.addAttribute("commandinjection", false);
 			localNode.addAttribute("secret", false);
 			localNode.addAttribute("printout", false);
 			localNode.addAttribute("sink", false);
@@ -452,11 +486,11 @@ public class GraphSingleton extends MultiGraph {
 		return localNode;
 	}
 	
-	public List<MethodHolder> getMethodsOnGraph() {
+	public synchronized List<MethodHolder> getMethodsOnGraph() {
 		return methodsOnGraph;
 	}
 
-	public void setMethodsOnGraph(List<MethodHolder> methodsOnGraph) {
+	public synchronized void setMethodsOnGraph(List<MethodHolder> methodsOnGraph) {
 		this.methodsOnGraph = methodsOnGraph;
 	}
 
@@ -569,7 +603,12 @@ public class GraphSingleton extends MultiGraph {
 	}
 	
 	 public synchronized void trackingLeHavre(final Viewer viewer){
-		//testa se a criação do video foi cancelada
+		if(myInstance.habilitarVideo == false){
+			return; // Se não estiver habilitado a geração de video não faz nada
+		}
+		 
+		 
+		 //testa se a criação do video foi cancelada
 		if(movieIsCanceled()){
 			myInstance.endOfCreatingOfImages();
 			return;
@@ -733,7 +772,7 @@ public class GraphSingleton extends MultiGraph {
 		ConfigProperties configProperties = ConfigProperties.getInstance();
 
 		
-		File directory = new File("C:/Prodemge/workspaces/workspace-kepler/inspectorj/tracking/images");
+		File directory = new File("tracking/images");
 		File[] listFiles = directory.listFiles();
 		Vector<String> inFiles = new Vector<String>();
 		String firstFile = null;
@@ -855,4 +894,15 @@ public class GraphSingleton extends MultiGraph {
 			view.setViewPercent(value);
 		}
 	}
+
+	public boolean isHabilitarVideo() {
+		return habilitarVideo;
+	}
+
+	public void setHabilitarVideo(boolean habilitarVideo) {
+		this.habilitarVideo = habilitarVideo;
+	}
+	
+	
+	
 }

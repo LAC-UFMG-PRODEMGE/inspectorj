@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -23,6 +24,7 @@ import soot.tagkit.LineNumberTag;
 import soot.tagkit.SourceLnNamePosTag;
 import soot.tagkit.Tag;
 import br.ufmg.harmonia.inspectorj.util.holder.ClassModificationInfo;
+import br.ufmg.harmonia.inspectorj.util.holder.LocalTypeHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodInvocationHolder;
 
 import com.google.common.collect.Lists;
@@ -46,13 +48,15 @@ public class InterproceduralResolver {
 	protected Map<Node, String> mapUnitRefToObject;
 	protected Map<Node, String> mapUnitObjectName;
 	
-	protected Map<Node, List<Type>> mapLocalType;
+	protected Map<Node, LocalTypeHolder> mapLocalType;
 	
 	protected Map<Node, Map<Node, String>> mapSubtypes;
 	
 	protected Map<String, ClassModificationInfo> mapClassModification;
 	
 	protected List<Node> nodeTypesVisited = new ArrayList<Node>();
+	
+	protected Set<Node> nodeWriteClass = new HashSet<Node>();
 	
 		
 	private InterproceduralResolver() {
@@ -70,7 +74,7 @@ public class InterproceduralResolver {
 		mapUnitRefToObject = new ConcurrentHashMap<Node, String>();
 		mapUnitObjectName =  new ConcurrentHashMap<Node, String>();
 		
-		mapLocalType = new HashMap<Node, List<Type>>();
+		mapLocalType = new HashMap<Node, LocalTypeHolder>();
 		
 		mapSubtypes = new HashMap<Node, Map<Node, String>>();
 		
@@ -129,7 +133,7 @@ public class InterproceduralResolver {
 	}
 	
 	//MapLocalType
-	public synchronized Map<Node, List<Type>> getMapLocalType() {
+	public synchronized Map<Node, LocalTypeHolder> getMapLocalType() {
 		return mapLocalType;
 	}
 	
@@ -168,7 +172,7 @@ public class InterproceduralResolver {
 	
 	
 	
-	
+	//colocar algo aqui pra tratar a escrita no programa
 	public synchronized void resolveTypes(Node node){
 		
 		if(nodeTypesVisited.contains(node)){
@@ -182,17 +186,28 @@ public class InterproceduralResolver {
 		Map<Node, String> map = mapSubtypes.get(node);
 		if(map!=null){
 			Set<Entry<Node, String>> entryParameters = Collections.synchronizedSet(map.entrySet());
-			GraphSingleton graphInstance = GraphSingleton.getInstance();
+		//	GraphSingleton graphInstance = GraphSingleton.getInstance();
 			for (Entry<Node, String> entry : entryParameters) {			
 				synchronized (this) {
 					Node parameter = entry.getKey();
-					List<Type> listType = mapLocalType.get(node);
+					LocalTypeHolder holder = mapLocalType.get(node);
+					List<Type> listType = holder.getTypes();
 					for(Type type: listType){
 						String key = "<"+type+entry.getValue(); 
 						
 						Node nodeArg = InterproceduralResolver.getInstance().getMapUnitParameterInvocation().get(key);
 						if(nodeArg!=null){
 							GraphSingleton.getInstance().createEdge(nodeArg, parameter, false);
+							
+							MethodInvocationHolder miHolder = new MethodInvocationHolder();
+							miHolder.setNodeArgOutside(parameter);
+							miHolder.setNodeParamInside(nodeArg);
+							miHolder.setNodeMethod(node);
+							miHolder.setUnit(holder.getUnit());
+							miHolder.setTags(holder.getUnit().getTags());
+							miHolder.setKey(key);
+							
+							
 						}else{
 							List<String> list = InterproceduralResolver.getInstance().getMapResolveParameterInvocationLater().get(parameter);
 							if(list!=null){
@@ -218,8 +233,9 @@ public class InterproceduralResolver {
 				List<org.graphstream.graph.Edge> synchronizedList = Collections.synchronizedList(newArrayList);
 				for(org.graphstream.graph.Edge edge: synchronizedList) {
 					targetNode = edge.getTargetNode();
-					List<Type >list = mapLocalType.get(node);
-					InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, list);
+					LocalTypeHolder holder = mapLocalType.get(node);
+					List<Type >list = holder.getTypes();
+					InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, new LocalTypeHolder(targetNode,list,holder.getUnit()));
 					resolveTypes(targetNode);
 				}
 				InterproceduralResolver.getInstance().getMapLocalType().remove(node);
@@ -240,6 +256,8 @@ public class InterproceduralResolver {
 //			}
 //		}
 //		
+		//ja ta chegando aqui vazio
+		
 		ArrayList<Node> listLocal = new ArrayList<Node>(mapLocalType.keySet());
 		for(Node entry: listLocal){
 			synchronized (this) {
@@ -321,6 +339,9 @@ public class InterproceduralResolver {
 		}
 	}
 	
+	
+	List<Node> visitedTainted = new ArrayList<Node>();
+	
 	public synchronized void selectTaintedNode(Node node){
 		//CODIGO NOVO
 		Iterable<Edge> eachEnteringEdge = node.getEachEnteringEdge();
@@ -337,7 +358,10 @@ public class InterproceduralResolver {
 					Node targetNode = edge.getSourceNode();
 					targetNode.setAttribute("tainted", true);
 				
-					selectTaintedNode(targetNode);
+					if(!visitedTainted.contains(targetNode)){
+						visitedTainted.add(targetNode);
+						selectTaintedNode(targetNode);
+					}
 				}				
 			}			
 		}
@@ -356,151 +380,75 @@ public class InterproceduralResolver {
 
 	@SuppressWarnings({ "unchecked" })
 	public synchronized void colorGraph() {
-		//AGORA TEM QUE MUDAR AQUI
 		GraphSingleton graphInstance = GraphSingleton.getInstance();
+		Boolean incluirTrava = ConfigProperties.getInstance().getBoolean("incluir.trava");
+		incluirTrava = (incluirTrava == null)? false: incluirTrava;
+		StatisticsUtil statistics = StatisticsUtil.getInstance();
+		Map<String, Integer> numberOfTaintedNode = statistics.getNumberOfTaintedNode();
+		Map<String, Integer> numberOfCommandNode = statistics.getNumberOfCommandNode();
+		Map<String, Integer> numberOfPrintoutNode = statistics.getNumberOfPrintoutNode();
+		Map<String, Integer> numberOfConditionalNode = statistics.getNumberOfConditionalNode();
+		
 		if(graphInstance.getAttribute("tainted")) {
+			
 			Set<Entry<String, Node>> unitTaintedNode = Collections.synchronizedSet(mapUnitTaintedNode.entrySet());
 			for (Entry<String, Node> entry : unitTaintedNode) {
 				synchronized (this) {
 					Node taintedNode = entry.getValue();
 					if(taintedNode.getAttribute("tainted")){
+						
+						
+						String prefixFull = taintedNode.toString().split(":")[0];
+						
+						
 						if(taintedNode.getAttribute("condicional")){
 							taintedNode.setAttribute("ui.class", "taintedCondicional");
 							graphInstance.stepBegins(graphInstance.getStep());
+							
+							//Contabiliza a quantidade nodos contaminados
+							Integer qtde = numberOfConditionalNode.get(prefixFull);
+							numberOfConditionalNode.put(prefixFull, (qtde==null)?1:qtde+1);
+							
 						}
 						else if(taintedNode.getAttribute("secret")) {
 							taintedNode.setAttribute("ui.class", "taintedSecret");
-							graphInstance.stepBegins(graphInstance.getStep());
+							graphInstance.stepBegins(graphInstance.getStep());														
 						}
 						else if(taintedNode.getAttribute("printout")) {
 							taintedNode.setAttribute("ui.class", "taintedPrintout");
 							graphInstance.stepBegins(graphInstance.getStep());
+							
+							//Contabiliza a quantidade nodos contaminados
+							Integer qtde = numberOfPrintoutNode.get(prefixFull);
+							numberOfPrintoutNode.put(prefixFull, (qtde==null)?1:qtde+1);
+						}
+						else if(taintedNode.getAttribute("commandinjection")) {
+							taintedNode.setAttribute("ui.class", "taintedCommandinjection");
+							graphInstance.stepBegins(graphInstance.getStep());
+							
+							//Contabiliza a quantidade nodos contaminados
+							Integer qtde = numberOfCommandNode.get(prefixFull);
+							numberOfCommandNode.put(prefixFull, (qtde==null)?1:qtde+1);
+							
 						}
 						else {
 							taintedNode.setAttribute("ui.class", "tainted");
 							graphInstance.stepBegins(graphInstance.getStep());
-						}	
-						
-						
-					}
-					List<MethodInvocationHolder> miInvocation = (List<MethodInvocationHolder>)taintedNode.getAttribute("tagsInvocation");
-					if(miInvocation!=null){
-						
-						for (MethodInvocationHolder methodInvocationHolder : miInvocation) {
-							
-							List<Tag> tags = methodInvocationHolder.getTags();
-							if (tags!=null && !methodInvocationHolder.isVisited()) {
-								
-								
-								
-								Tag tag = tags.get(0);
-								int linePosition = 0;
-								if(tag instanceof SourceLnNamePosTag){
-									SourceLnNamePosTag posTag = (SourceLnNamePosTag) tag;
-									linePosition = posTag.startLn();
-									
-								}else if(tag instanceof LineNumberTag){
-									LineNumberTag posTag = (LineNumberTag)tag;
-									linePosition = posTag.getLineNumber();
-								}else{
-									System.out.println("erro ao pegar posicao da invocacao : "+tag.getClass());
-									continue;
-								}
-								String classeEMetodo = methodInvocationHolder.getNodeMethod().toString()
-										.split(":")[0];
-								String nomeDaClasse = classeEMetodo.split("-")[0];
-								nomeDaClasse = nomeDaClasse.replaceAll("\\.",
-										"/");
-								System.out.println("Alterar a classe "
-										+ nomeDaClasse + " na linha " + linePosition);
-								ConfigProperties properties = ConfigProperties
-										.getInstance();
-								String[] dirs = properties.getString(
-										"classpath").split(";");
-								File fileJava = null;
-								boolean founded = false;
-								for (String directory : dirs) {
-									if (!directory.endsWith(".jar")) {
-										fileJava = new File(directory + "/"
-												+ nomeDaClasse + ".java");
-										if (fileJava.exists()) {
-											founded = true;
-											break;
-										}
-									}
-								}
-								if (founded) {
-									
-									//Pega informacoes das alteracoes ja feitas no arquivo da classe
-									ClassModificationInfo classModificationInfo = mapClassModification.get(nomeDaClasse);
-									if(classModificationInfo == null){
-										classModificationInfo = new ClassModificationInfo();
-									}
-									
-									//Se a linha mudada foi depois de alguma linha já alterada, inclui o offSet no valor
-									int offSet = classModificationInfo.getOffSet();
-									if(linePosition<classModificationInfo.getMinorLine()){
-										classModificationInfo.setMinorLine(linePosition);
-										linePosition += offSet;
-									}
-																																				
-									BufferedReader reader = null;
-									BufferedWriter writer = null;
-									ArrayList<String> list = new ArrayList<String>();
-									
-									try {
-										reader = new BufferedReader(
-												new FileReader(fileJava));
-										String tmp;
-										while ((tmp = reader.readLine()) != null) {
-											list.add(tmp);
-										}
-										reader.close();
-										
-										
-										Node nodeParamInside = methodInvocationHolder.getNodeParamInside();
-										Node nodeArgOutside = methodInvocationHolder.getNodeArgOutside();
-										if(nodeArgOutside!=null && nodeParamInside!=null){											
-											list.add(linePosition - 1 + offSet,
-													"/* if("+nodeArgOutside.toString().split(":")[1]+ " instanceof  " +
-															nodeParamInside.toString().split("-")[0]+ ") throws new java.lang.Exception();  */");
-										}
-										
-										writer = new BufferedWriter(
-												new FileWriter(fileJava));
-										for (int i = 0; i < list.size(); i++) {
-											writer.write(list.get(i) + "\r\n");
-										}
-										writer.close();
-									} catch (Exception e) {
-										e.printStackTrace();
-									} finally {
-										if (reader != null) {
-											try {
-												reader.close();
-											} catch (IOException e) {
-												e.printStackTrace();
-											}
-										}
-										if (writer != null) {
-											try {
-												writer.close();
-											} catch (IOException e) {
-												e.printStackTrace();
-											}
-										}
-										
-									}
-									
-									//Após terminar a alteração acrescer 1 no offSet pois mais uma linha foi inserida no arquivo
-									classModificationInfo.setOffSet(++offSet);
-									mapClassModification.put(nomeDaClasse, classModificationInfo);
-									
-								}
-							}
-							methodInvocationHolder.setVisited(true);
 						}
-
+					
+						//Contabiliza a quantidade nodos contaminados
+						Integer qtde = numberOfTaintedNode.get(prefixFull);
+						numberOfTaintedNode.put(prefixFull, (qtde==null)?1:qtde+1);
+						
+						
+						if(incluirTrava){							
+							List<MethodInvocationHolder> miInvocation = (List<MethodInvocationHolder>)taintedNode.getAttribute("tagsInvocation");
+							if(miInvocation!=null){
+								//Guarda para escrever nas methodsAndClasses depois de colorir o grafo
+								nodeWriteClass.add(taintedNode);
+							}												
+						}
+						
 					}
 					
 				}
@@ -522,7 +470,191 @@ public class InterproceduralResolver {
 					}
 				}
 			}
+			
+			
+			if(incluirTrava){							
+				//codigo pra escrever no programa Java
+				for (Node node : nodeWriteClass) {
+					List<MethodInvocationHolder> miInvocation = (List<MethodInvocationHolder>)node.getAttribute("tagsInvocation");
+					writeOnOriginalClass(miInvocation, node);
+				}
+				//fim do codigo pra escrever no programa Java
+			}
+			
 		}
-	}	
-		
+	}
+
+	protected void writeOnOriginalClass(
+			List<MethodInvocationHolder> miInvocation, Node taintedNode) {
+		if(miInvocation!=null){
+			
+			
+			//linha e classe 
+			Map<String, Integer> classeMarked = new HashMap<String, Integer>();
+			for (MethodInvocationHolder methodInvocationHolder : miInvocation) {
+				
+				List<Tag> tags = methodInvocationHolder.getTags();
+				if (tags!=null && !methodInvocationHolder.isVisited()) {
+					
+					
+					
+					Tag tag = tags.get(0);
+					int linePosition = 0;
+					if(tag instanceof SourceLnNamePosTag){
+						SourceLnNamePosTag posTag = (SourceLnNamePosTag) tag;
+						linePosition = posTag.startLn();
+						
+					}else if(tag instanceof LineNumberTag){
+						LineNumberTag posTag = (LineNumberTag)tag;
+						linePosition = posTag.getLineNumber();
+					}else{
+						System.out.println("erro ao pegar posicao da invocacao : "+tag.getClass());
+						continue;
+					}
+					String classeEMetodo = methodInvocationHolder.getNodeMethod().toString()
+							.split(":")[0];
+					String nomeDaClasse = classeEMetodo.split("-")[0];
+					nomeDaClasse = nomeDaClasse.replaceAll("\\.",
+							"/");
+					System.out.println("Alterar a classe "
+							+ nomeDaClasse + " na linha " + linePosition);
+					ConfigProperties properties = ConfigProperties
+							.getInstance();
+					String[] dirs = properties.getString(
+							"classpath").split(";");
+					File fileJava = null;
+					boolean founded = false;
+					for (String directory : dirs) {
+						if (!directory.endsWith(".jar")) {
+							fileJava = new File(directory + "/"
+									+ nomeDaClasse + ".java");
+							if (fileJava.exists()) {
+								founded = true;
+								break;
+							}
+						}
+					}
+					if (founded) {
+						
+						//Pega informacoes das alteracoes ja feitas no arquivo da classe
+						ClassModificationInfo classModificationInfo = mapClassModification.get(nomeDaClasse);
+						if(classModificationInfo == null){
+							classModificationInfo = new ClassModificationInfo();
+						}
+						
+						//Se a linha mudada foi depois de alguma linha já alterada, inclui o offSet no valor
+						int offSet = classModificationInfo.getOffSet();
+						if(linePosition<classModificationInfo.getMinorLine()){
+							classModificationInfo.setMinorLine(linePosition);
+							linePosition += offSet;
+						}
+																																	
+						BufferedReader reader = null;
+						BufferedWriter writer = null;
+						ArrayList<String> list = new ArrayList<String>();
+//						List<String> imports = new ArrayList<String>();
+//						List<String> importsToInclude = new ArrayList<String>();
+//						int endOfImports = -1;
+						try {
+							reader = new BufferedReader(
+									new FileReader(fileJava));
+							String tmp;
+							while ((tmp = reader.readLine()) != null) {								
+								list.add(tmp);
+//								if(tmp.contains("import")){
+//									imports.add(tmp);
+//								}else{
+//									if(endOfImports == -1 && imports.size()>0){
+//										endOfImports = list.size();
+//									}
+//								}
+							}
+							reader.close();		
+							
+							Node nodeParamInside = methodInvocationHolder.getNodeParamInside();
+							Node nodeMethod = methodInvocationHolder.getNodeMethod();
+							if(nodeMethod!=null && nodeParamInside!=null){											
+								
+								
+								Node nodeArgOutside = methodInvocationHolder.getNodeArgOutside();
+								Iterable<Edge> eachLeavingEdge = nodeArgOutside.getEachLeavingEdge();
+								for(Edge next: eachLeavingEdge){
+									Object tainted = next.getAttribute("tainted");
+									if(Boolean.TRUE.equals(tainted)){
+										String classNode = next.toString().split("-")[0];
+										Integer linePositionSaved = classeMarked.get(classNode);//Verifica se já foi incluido essa marcação para não repetir a classe bloqueada
+										if(linePositionSaved == null || linePosition != linePositionSaved.intValue() ){											
+											String[] array = nodeMethod.toString().split(":");
+											String variable = array[1];
+											list.add(linePosition - 1 + offSet,
+												//	"/*"+ 
+														" if("+variable+ " instanceof  " + classNode+ "){ "
+															+ "throw new java.lang.Exception(\"A flaw Detected in ["+nodeParamInside.toString().split(":")[0]+"] \");"
+													 +  " }"
+												//					+ "*/"
+															);
+										}
+										
+										classeMarked.put(classNode, linePosition);
+//										boolean importFounded = false;
+//										for(String imported: imports){
+//											if(imported.contains(classNode)){
+//												importFounded = true;
+//												break;
+//											}
+//										}
+//										
+//										if(!importFounded){
+//											importsToInclude.add(classNode);
+//										}
+									}									
+								}
+							
+							}
+							
+							
+							writer = new BufferedWriter(
+									new FileWriter(fileJava));
+							
+							
+							for (int i = 0; i < list.size(); i++) {
+								String line = list.get(i);																								
+								writer.write(line + "\r\n");
+//								if(i == endOfImports){
+//									for(String toImport: importsToInclude){
+//										writer.write("import "+toImport+";\r\n");		
+//									}
+//								}
+							}
+							writer.close();
+						} catch (Exception e) {
+							e.printStackTrace();
+						} finally {
+							if (reader != null) {
+								try {
+									reader.close();
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}
+							if (writer != null) {
+								try {
+									writer.close();
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}
+						}
+						
+						//Após terminar a alteração acrescer 1 no offSet pois mais uma linha foi inserida no arquivo
+						classModificationInfo.setOffSet(++offSet);
+						mapClassModification.put(nomeDaClasse, classModificationInfo);
+						
+					}
+				}
+				methodInvocationHolder.setVisited(true);
+			}
+
+		}
+	}			
 }

@@ -4,22 +4,23 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
-import org.graphstream.graph.Edge;
 import org.graphstream.graph.Node;
 
 import soot.ArrayType;
 import soot.Body;
 import soot.BodyTransformer;
 import soot.G;
+import soot.Hierarchy;
 import soot.PatchingChain;
+import soot.Scene;
 import soot.SootClass;
 import soot.SootFieldRef;
 import soot.SootMethod;
@@ -40,6 +41,7 @@ import soot.jimple.internal.JGotoStmt;
 import soot.jimple.internal.JIdentityStmt;
 import soot.jimple.internal.JIfStmt;
 import soot.jimple.internal.JInstanceFieldRef;
+import soot.jimple.internal.JInterfaceInvokeExpr;
 import soot.jimple.internal.JInvokeStmt;
 import soot.jimple.internal.JLengthExpr;
 import soot.jimple.internal.JNewExpr;
@@ -57,8 +59,10 @@ import soot.toolkits.graph.MHGPostDominatorsFinder;
 import br.ufmg.harmonia.inspectorj.util.ConfigProperties;
 import br.ufmg.harmonia.inspectorj.util.GraphSingleton;
 import br.ufmg.harmonia.inspectorj.util.InterproceduralResolver;
+import br.ufmg.harmonia.inspectorj.util.StatisticsUtil;
 import br.ufmg.harmonia.inspectorj.util.holder.ArrayHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.ConditionalHolder;
+import br.ufmg.harmonia.inspectorj.util.holder.LocalTypeHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodInvocationHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.SwitchHolder;
@@ -164,7 +168,7 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 	protected Map<JimpleLocal, LinkedHashSet<ArrayHolder>> mapArrayIndexKnown = new HashMap<JimpleLocal, LinkedHashSet<ArrayHolder>>();
 	
 	
-	protected Map<Value, List<Type>> mapLocalType = new HashMap<Value, List<Type>>(); 
+	protected Map<Value, LocalTypeHolder> mapLocalType = new HashMap<Value, LocalTypeHolder>(); 
 	
 	//Primeiro método	
 	protected void internalTransform(Body body, String phase, Map<String, String> options) {
@@ -178,12 +182,27 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 			
 	//		if(name.equals(classPropName)) {
 	//			if(method.getName().equals(methodPropName)) {				
+		
+		
+					StatisticsUtil instance = StatisticsUtil.getInstance();
+					
+					SootClass declaringClass = body.getMethod().getDeclaringClass();
+					String name = declaringClass.getName();
+					String prefixFull = name+"-"+body.getMethod().getName();
+					instance.getMethodTimeStart().put(prefixFull, new Date());//tempo inicial
+					instance.getMethodsAndClasses().add(prefixFull);//assinatura do metodo
+					instance.getOnlyClasses().add(name);
+					
+					instance.setNumberOfMethod(instance.getNumberOfMethod()+1);//conta o numero de metodo
+					
 					PrintStream out = G.v().out;
 					out.println(body);
 					//				out.println(name+ ": "+method.getName());
 					GraphSingleton graph = GraphSingleton.getInstance();
-					
+									
 					createDependecyGraph(body, graph);						
+					
+					instance.getMethodTimeEnd().put(prefixFull, new Date());//tempo final
 					
 	//				CallGraph callGraph = Scene.v().getCallGraph();
 	//				Iterator<Edge> edgesOutOfAutenticar = callGraph.edgesOutOf(body.getMethod());
@@ -216,6 +235,7 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 		String methodName = method.getName();
 		SootClass declaringClass = method.getDeclaringClass();
 		String name = declaringClass.getName();
+		
 		
 		String prefixFull = name+"-"+method.getName();
 		String prefixShort = declaringClass.getShortName()+"-"+method.getName();
@@ -354,7 +374,6 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 						allArrays.add(unit);
 					}
 					
-					
 					int index = parameterRef.getIndex();					
 					InterproceduralResolver.getInstance().getMapUnitParameterInvocation().put(method.toString()+"@parameter"+index, leftNode);
 				}
@@ -381,6 +400,12 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 				InvokeExpr invokeExpr = jInvokeStmt.getInvokeExpr();				
 				List<Value> args = invokeExpr.getArgs();
 				if(args!=null && args.size()>0){
+					
+					
+					
+					
+					
+					 
 					List<ValueBox> useBoxes = invokeExpr.getUseBoxes();
 					Value leftOp = null;
 					for(ValueBox valueBox: useBoxes){
@@ -391,9 +416,40 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 					}
 					if(leftOp!=null){
 						
-						//method.getActiveBody().getLocals();
+						Node localNode = graph.createNode(leftOp, prefixFull, prefixShort, currentColor, getUnitAttributes(unit.getTags(), null));				
 						
-						Node localNode = graph.createNode(leftOp, prefixFull, prefixShort, currentColor, getUnitAttributes(unit.getTags(), null));						
+						
+						
+						if(invokeExpr instanceof JInterfaceInvokeExpr){
+							JInterfaceInvokeExpr jInterfaceExpr = (JInterfaceInvokeExpr)invokeExpr;
+							Type type = jInterfaceExpr.getBase().getType();
+							Scene v = Scene.v();
+							Hierarchy hierarchy = v.getActiveHierarchy();
+							SootClass sootInterface = v.getSootClass(type.getEscapedName());
+							if(sootInterface.isInterface()){								
+								List<SootClass> implementersOf = hierarchy.getImplementersOf(sootInterface);
+								for (SootClass sootClass : implementersOf) {
+									
+									System.out.println(sootClass);
+									
+									LocalTypeHolder holder =  mapLocalType.get(leftOp);
+									if(holder==null){
+										holder = new LocalTypeHolder();
+										holder.setUnit(jInvokeStmt);
+										holder.setNodeRefered(localNode);
+										List<Type> types = holder.getTypes();
+										if(types == null){
+											holder.setTypes(new ArrayList<Type>());
+										}
+									}
+									holder.getTypes().add(sootClass.getType());
+									mapLocalType.put(leftOp, holder);
+								}
+							}
+							
+						}
+						
+						
 						
 						//Cria aresta de controle se houver condicional
 						checkControlEdge(graph, localNode, ifStack,previousIf);
@@ -419,7 +475,15 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 								
 								
 								String key = invokeExpr.getMethodRef().toString()+"@parameter"+i;
-								List<Type> list = mapLocalType.get(leftOp); 
+								LocalTypeHolder holder =  mapLocalType.get(leftOp);
+								if(holder==null){
+									holder = new LocalTypeHolder();
+									holder.setNodeRefered(nodeRight);
+								}
+						
+								
+								
+								List<Type> list = holder.getTypes();//mapLocalType.get(leftOp); 
 								if(list!=null){
 									for(Type type: list){
 										key = "<"+type+key.substring(key.indexOf(":"));//Troca o tipo de 
@@ -650,16 +714,23 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 				if(!leftOp.getType().equals(rightOp.getType())){
 					System.out.println("Entrei");					
 					
-					List<Type> list = mapLocalType.get(leftOp);
-					if(list!=null){
-						list.add(rightOp.getType());
-						mapLocalType.put(leftOp, list);
+					LocalTypeHolder holder = mapLocalType.get(leftOp);
+					if(holder==null){
+						holder = new LocalTypeHolder();
+						holder.setNodeRefered(localNode);
+						holder.setUnit(unit);
 					}
-					else{
-						List<Type> newlist = new ArrayList<Type>();
-						newlist.add(rightOp.getType());
-						mapLocalType.put(leftOp, newlist);
+					List<Type> list = holder.getTypes();//mapLocalType.get(leftOp);
+					if(list == null){
+						list = new ArrayList<Type>();
+						//list.add(rightOp.getType());
+						//mapLocalType.put(leftOp, list);
 					}
+					//list = new ArrayList<Type>();
+					list.add(rightOp.getType());
+					holder.setTypes(list);
+					mapLocalType.put(leftOp, holder);
+					
 					
 					//se o localNode(leftOp) ja existir e ja tiver aresta saindo dele, entao temos que colcoar ele
 					//em um mapa para resolver depois, em que eu vou mudar o tipo do no pra onde minha aresta vai e
@@ -672,8 +743,15 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 						List<org.graphstream.graph.Edge> synchronizedList = Collections.synchronizedList(newArrayList);
 						for(org.graphstream.graph.Edge edge: synchronizedList) {
 							Node targetNode = edge.getTargetNode();
-							list = mapLocalType.get(leftOp);
-							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, list);
+							LocalTypeHolder holder2 = mapLocalType.get(leftOp);
+							if(holder2 == null) {
+								holder2 = new LocalTypeHolder();
+								holder2.setNodeRefered(targetNode);
+								holder2.setUnit(unit);
+							}
+							list = holder2.getTypes();//mapLocalType.get(leftOp);
+							holder2.setTypes(list);
+							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, holder2);
 						}
 					}
 				}
@@ -973,7 +1051,24 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 			Value base = jVirtualInvokeExpr.getBase();
 			//se tiver base
 			if(base!=null){
+								
 				Node nodeBase = graph.createNode(base, prefixFull, prefixShort, currentColor, map);	
+				if(jVirtualInvokeExpr.getMethodRef().getSignature().equals("<java.lang.Runtime: java.lang.Process exec(java.lang.String)>")){
+					ConfigProperties prop = ConfigProperties.getInstance();
+					String propertySink = prop.getString("sorvedouro");
+					String[] splitSink = propertySink.split(",");
+					//commandinjection
+					for(String typeSink : splitSink) {
+						if(typeSink.equals("commandinjection")) {
+							localNode.setAttribute("sink", true);
+							localNode.setAttribute("commandinjection", true);
+							localNode.setAttribute("ui.class", "commandinjection");
+							break;
+						}
+					}	
+					
+				}
+				
 				List<Value> args = jVirtualInvokeExpr.getArgs();
 				if(args!=null){
 					for(Value arg: args){
@@ -983,6 +1078,8 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 					}					
 				}
 				graph.createEdge(localNode, nodeBase, false);
+				
+				
 			}
 			
 			else {
@@ -996,7 +1093,11 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 			includeReturnNode(localNode, methodRef);
 			//Cria aresta de controle se houver switch			
 			//checkControlSwitch(graph, switchHolder, nodeBase);
-		}//else				
+		}//else
+		
+		
+		
+		
 		//cria aresta de dependencia a partir de uma variavel utilizada em uma invocacao estatica  				
 		if(rightOp instanceof JStaticInvokeExpr){
 			JStaticInvokeExpr jStaticExpr = (JStaticInvokeExpr)rightOp;
@@ -1143,9 +1244,12 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 			graph.createEdge(localNode, dependencyNode, false);
 			
 			//Se rightOp pode ter outro tipo
-			List<Type> list = mapLocalType.get(rightOp);
+			LocalTypeHolder holder = mapLocalType.get(rightOp);
+			
+			List<Type> list = holder!=null?holder.getTypes():null;//mapLocalType.get(rightOp);
 			if(list!=null){
-				mapLocalType.put(leftOp, list);
+				LocalTypeHolder holderNew = new LocalTypeHolder(localNode, list, unit);
+				mapLocalType.put(leftOp, holder);
 			}
 			else{
 				Iterable<org.graphstream.graph.Edge> eachLeavingEdge = localNode.getEachLeavingEdge();
@@ -1154,14 +1258,16 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 					List<org.graphstream.graph.Edge> synchronizedList = Collections.synchronizedList(newArrayList);
 					for(org.graphstream.graph.Edge edge: synchronizedList) {
 						Node targetNode = edge.getTargetNode();
-						list = mapLocalType.get(leftOp);
-						if(list!=null){
-							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, list);							
-						}
-						else{
+						LocalTypeHolder holder2 = mapLocalType.get(leftOp);
+						//list = mapLocalType.get(leftOp);
+						if(holder2!=null){
+							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, new LocalTypeHolder(targetNode,holder2.getTypes(),unit));							
+						}else{
 							List<Type> newList = new ArrayList<Type>();
 							newList.add(leftOp.getType());
-							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, newList);	
+							holder2 = new LocalTypeHolder(targetNode, newList, unit);
+							
+							InterproceduralResolver.getInstance().getMapLocalType().put(targetNode, holder2);	
 						}
 					}
 				}
@@ -1171,7 +1277,7 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 		}//else
 		//Cria arestas de dependencias para variaveis da função phi
 		if (rightOp instanceof SPhiExpr) {
-			//Verifica se o leftOp é um objeto de uma das classes analisadas			
+			//Verifica se o leftOp é um objeto de uma das methodsAndClasses analisadas			
 			SPhiExpr phiExpr = (SPhiExpr) rightOp;
 			List<Value> values = phiExpr.getValues();
 			graph.createEdges(leftOp, localNode, values, prefixFull, prefixShort, currentColor, map, mapLocalType);				
@@ -1207,7 +1313,7 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 			}
 		
 			
-			//Verificar se o className é uma das classes transformadas pelo Soot
+			//Verificar se o className é uma das methodsAndClasses transformadas pelo Soot
 			if(className.contains(packageName)){
 				
 				String[] list = className.split("\\."); 

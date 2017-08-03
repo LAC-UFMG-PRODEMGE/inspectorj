@@ -554,7 +554,7 @@ public class JpegImagesToMovie2 implements ControllerListener, DataSinkListener 
 
 	// /////////////////////////////////////////////
 	//
-	// Inner classes.
+	// Inner methodsAndClasses.
 	// /////////////////////////////////////////////
 
 	/**

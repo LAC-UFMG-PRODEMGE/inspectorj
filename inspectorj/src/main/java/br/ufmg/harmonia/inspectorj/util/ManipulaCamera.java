@@ -1,17 +1,9 @@
 package br.ufmg.harmonia.inspectorj.util;
 
-import java.io.IOException;
 import java.util.List;
 
-import org.graphstream.graph.Node;
-import org.graphstream.stream.file.FileSinkImages;
-import org.graphstream.stream.file.FileSinkImages.OutputPolicy;
-import org.graphstream.stream.file.FileSinkImages.OutputType;
-import org.graphstream.stream.file.FileSinkImages.Resolution;
-import org.graphstream.stream.file.FileSinkImages.Resolutions;
 import org.graphstream.ui.graphicGraph.GraphicGraph;
 import org.graphstream.ui.swingViewer.DefaultView;
-import org.graphstream.ui.view.ViewerPipe;
 
 
 public class ManipulaCamera extends Thread {

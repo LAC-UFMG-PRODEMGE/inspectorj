@@ -5,8 +5,8 @@ package br.ufmg.harmonia.inspectorj.resource.test.case00;
  * Expected result: LEAK
  */
 public class Test0 {
-	public static void main(String args[]) {
-		int SECRET = Integer.parseInt(args[0]);
-		System.out.println(SECRET);
-	}
+  public static void main(String args[]) {
+    int SECRET = Integer.parseInt(args[0]);
+    System.out.println(SECRET);
+  }
 }

@@ -20,6 +20,5 @@ public class Test11 {
                }
     }
     System.out.println(aux1);
-    System.out.println(aux1);
   }
 }
