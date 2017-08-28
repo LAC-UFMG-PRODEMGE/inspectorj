@@ -416,7 +416,8 @@ public class GraphSingleton extends MultiGraph {
 					InterproceduralResolver.getInstance().getMapUnitTaintedEdge().put(edge.getId(), edge);
 					
 					//talvez mudar isso
-					if(localNode.getAttribute("sink")) {
+					Boolean isNodeSink = localNode.getAttribute("sink");
+					if(isNodeSink!=null && isNodeSink) {
 						myInstance.setAttribute("tainted", true);
 						InterproceduralResolver.getInstance().getMapSinkNode().put(localNode.getId(), localNode);
 					}
@@ -545,7 +546,8 @@ public class GraphSingleton extends MultiGraph {
 	//Pega a posicao dos proximos nodes contaminados
 	public synchronized void getNextTaintedNode(Node node, Node realNode) {
 		
-		if(realNode.getAttribute("tainted")){
+		Boolean isRealNodeTainted = realNode.getAttribute("tainted");
+		if(isRealNodeTainted!=null && isRealNodeTainted){
 			
 			Iterable<Edge> eachLeavingEdge = node.getEachLeavingEdge();
 			for(Edge edge : eachLeavingEdge) {
@@ -559,7 +561,8 @@ public class GraphSingleton extends MultiGraph {
 						
 						Edge taintedEdge = InterproceduralResolver.getInstance().mapUnitTaintedEdge.get(edge.getId());
 						if(taintedEdge != null) {
-							if(taintedEdge.getAttribute("tainted")){
+							Boolean isEdgeTainted = taintedEdge.getAttribute("tainted");
+							if(isEdgeTainted!=null && isEdgeTainted){
 								Node targetNode = edge.getTargetNode();
 								Node nextNode = copyGraphInstance.getNode(targetNode.getId());
 								realNode = getNode(targetNode.getId());

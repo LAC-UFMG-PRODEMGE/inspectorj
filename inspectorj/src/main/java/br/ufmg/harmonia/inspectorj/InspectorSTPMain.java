@@ -61,7 +61,7 @@ public class InspectorSTPMain {
 		Options.v().set_whole_program(false);
 		Options.v().set_app(true);
 		Options.v().set_via_shimple(true);
-		Options.v().set_src_prec(Options.src_prec_java); 
+		Options.v().set_src_prec(Options.src_prec_only_class); 
 		Options.v().set_output_format(Options.output_format_S);
 		
 		
@@ -301,6 +301,8 @@ public class InspectorSTPMain {
 		
 	
 		SpringBox layout = new SpringBox(false, new Random(new Date().getTime()));
+		layout.setForce(1);
+		
 //		final Eades84Layout layout = new Eades84Layout();
 //		layout.setQuality(0);
 //		layout.setForce(1);

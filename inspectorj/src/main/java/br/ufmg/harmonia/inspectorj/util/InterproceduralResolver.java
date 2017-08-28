@@ -158,7 +158,8 @@ public class InterproceduralResolver {
 					mapUnitTaintedEdge.put(edge.getId(), edge);
 					Node targetNode = edge.getTargetNode();
 					
-					if(targetNode.getAttribute("sink")) {
+					Boolean isNodeSink = targetNode.getAttribute("sink");
+					if(isNodeSink!=null && isNodeSink) {
 						GraphSingleton.getInstance().setAttribute("tainted", true);
 						InterproceduralResolver.getInstance().getMapSinkNode().put(targetNode.getId(), targetNode);
 					}
@@ -389,19 +390,22 @@ public class InterproceduralResolver {
 		Map<String, Integer> numberOfPrintoutNode = statistics.getNumberOfPrintoutNode();
 		Map<String, Integer> numberOfConditionalNode = statistics.getNumberOfConditionalNode();
 		
-		if(graphInstance.getAttribute("tainted")) {
+		Boolean isGraphTainted = graphInstance.getAttribute("tainted");
+		if(isGraphTainted!=null && isGraphTainted) {
 			
 			Set<Entry<String, Node>> unitTaintedNode = Collections.synchronizedSet(mapUnitTaintedNode.entrySet());
 			for (Entry<String, Node> entry : unitTaintedNode) {
 				synchronized (this) {
 					Node taintedNode = entry.getValue();
-					if(taintedNode.getAttribute("tainted")){
+					Boolean isNodeTainted = taintedNode.getAttribute("tainted");
+					if(isNodeTainted!=null && isNodeTainted){
 						
 						
 						String prefixFull = taintedNode.toString().split(":")[0];
 						
 						
-						if(taintedNode.getAttribute("condicional")){
+						Boolean isCondicional = taintedNode.getAttribute("condicional");
+						if(isCondicional!=null && isCondicional){
 							taintedNode.setAttribute("ui.class", "taintedCondicional");
 							graphInstance.stepBegins(graphInstance.getStep());
 							
@@ -409,31 +413,37 @@ public class InterproceduralResolver {
 							Integer qtde = numberOfConditionalNode.get(prefixFull);
 							numberOfConditionalNode.put(prefixFull, (qtde==null)?1:qtde+1);
 							
-						}
-						else if(taintedNode.getAttribute("secret")) {
-							taintedNode.setAttribute("ui.class", "taintedSecret");
-							graphInstance.stepBegins(graphInstance.getStep());														
-						}
-						else if(taintedNode.getAttribute("printout")) {
-							taintedNode.setAttribute("ui.class", "taintedPrintout");
-							graphInstance.stepBegins(graphInstance.getStep());
-							
-							//Contabiliza a quantidade nodos contaminados
-							Integer qtde = numberOfPrintoutNode.get(prefixFull);
-							numberOfPrintoutNode.put(prefixFull, (qtde==null)?1:qtde+1);
-						}
-						else if(taintedNode.getAttribute("commandinjection")) {
-							taintedNode.setAttribute("ui.class", "taintedCommandinjection");
-							graphInstance.stepBegins(graphInstance.getStep());
-							
-							//Contabiliza a quantidade nodos contaminados
-							Integer qtde = numberOfCommandNode.get(prefixFull);
-							numberOfCommandNode.put(prefixFull, (qtde==null)?1:qtde+1);
-							
-						}
-						else {
-							taintedNode.setAttribute("ui.class", "tainted");
-							graphInstance.stepBegins(graphInstance.getStep());
+						} else {
+							Boolean isSecret = taintedNode.getAttribute("secret");
+							if(isSecret!=null && isSecret) {
+								taintedNode.setAttribute("ui.class", "taintedSecret");
+								graphInstance.stepBegins(graphInstance.getStep());														
+							} else {
+								Boolean isPrintout = taintedNode.getAttribute("printout");
+								if(isPrintout!=null && isPrintout) {
+									taintedNode.setAttribute("ui.class", "taintedPrintout");
+									graphInstance.stepBegins(graphInstance.getStep());
+									
+									//Contabiliza a quantidade nodos contaminados
+									Integer qtde = numberOfPrintoutNode.get(prefixFull);
+									numberOfPrintoutNode.put(prefixFull, (qtde==null)?1:qtde+1);
+								} else {
+									Boolean isCommandInjection = taintedNode.getAttribute("commandinjection");
+									if(isCommandInjection!=null && isCommandInjection) {
+										taintedNode.setAttribute("ui.class", "taintedCommandinjection");
+										graphInstance.stepBegins(graphInstance.getStep());
+										
+										//Contabiliza a quantidade nodos contaminados
+										Integer qtde = numberOfCommandNode.get(prefixFull);
+										numberOfCommandNode.put(prefixFull, (qtde==null)?1:qtde+1);
+										
+									}
+									else {
+										taintedNode.setAttribute("ui.class", "tainted");
+										graphInstance.stepBegins(graphInstance.getStep());
+									}
+								}
+							}
 						}
 					
 						//Contabiliza a quantidade nodos contaminados
@@ -458,7 +468,8 @@ public class InterproceduralResolver {
 			for (Entry<String, Edge> entry : unitTaintedEdge) {
 				synchronized (this) {
 					Edge taintedEdge = entry.getValue();
-					if(taintedEdge.getAttribute("tainted")){
+					Boolean isEdgeTainted = taintedEdge.getAttribute("tainted");
+					if(isEdgeTainted!=null && isEdgeTainted){
 						Boolean isControl = taintedEdge.getAttribute("isControlEdge");
 						if(isControl!=null && isControl){
 							taintedEdge.setAttribute("ui.class", "taintedControl");

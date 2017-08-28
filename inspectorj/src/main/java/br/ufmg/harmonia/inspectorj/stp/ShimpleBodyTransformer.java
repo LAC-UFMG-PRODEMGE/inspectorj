@@ -1219,6 +1219,28 @@ public class ShimpleBodyTransformer extends BodyTransformer {
 		if (rightOp instanceof JimpleLocal) {
 			JimpleLocal jLocal = (JimpleLocal) rightOp;
 			
+			//Conferir se o unit é um Invoce e se o método é do tipo Exec.
+			//se sim incluir que está contaminado
+			if(unit instanceof JInvokeStmt) {
+				if(((JInvokeStmt)unit).getInvokeExpr().getMethodRef().getSignature().equals("<java.lang.Runtime: java.lang.Process exec(java.lang.String)>")){
+					ConfigProperties prop = ConfigProperties.getInstance();
+					String propertySink = prop.getString("sorvedouro");
+					String[] splitSink = propertySink.split(",");
+					//commandinjection
+					for(String typeSink : splitSink) {
+						if(typeSink.equals("commandinjection")) {
+							localNode.setAttribute("sink", true);
+							localNode.setAttribute("commandinjection", true);
+							localNode.setAttribute("ui.class", "commandinjection");
+							break;
+						}
+					}	
+					
+				}				
+			}
+			
+			
+			
 			
 			if(jLocal.getType() instanceof ArrayType){
 				

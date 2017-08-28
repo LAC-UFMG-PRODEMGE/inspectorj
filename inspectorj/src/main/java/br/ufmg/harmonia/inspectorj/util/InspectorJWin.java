@@ -7,7 +7,6 @@ import java.awt.Label;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -24,21 +23,14 @@ import javax.swing.UIManager;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
-import org.fife.plaf.VisualStudio2005.VisualStudio2005LookAndFeel;
-import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
 import org.graphstream.stream.file.FileSinkImages;
-import org.graphstream.stream.file.FileSinkImages.LayoutPolicy;
-import org.graphstream.stream.file.FileSinkImages.OutputPolicy;
-import org.graphstream.stream.file.FileSinkImages.OutputType;
-import org.graphstream.stream.file.FileSinkImages.RendererType;
-import org.graphstream.stream.file.FileSinkImages.Resolution;
-import org.graphstream.stream.file.FileSinkImages.Resolutions;
 import org.graphstream.ui.graphicGraph.GraphicGraph;
 import org.graphstream.ui.swingViewer.DefaultView;
 import org.graphstream.ui.view.Viewer;
 
-import soot.options.Options;
+import com.lipstikLF.LipstikLookAndFeel;
+
 import br.ufmg.harmonia.inspectorj.CreateMovieProgressBar;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodHolder;
 
@@ -50,7 +42,7 @@ public class InspectorJWin extends JFrame {
 
 	public InspectorJWin() {
 		try{
-			UIManager.setLookAndFeel(VisualStudio2005LookAndFeel.class.getName());
+			UIManager.setLookAndFeel(LipstikLookAndFeel.class.getName());
 		}catch(Exception e){
 			e.printStackTrace();
 		}
@@ -230,7 +222,8 @@ public class InspectorJWin extends JFrame {
 				
 				public void actionPerformed(ActionEvent e) {
 					//Se o grafo estiver contaminado, gera o video
-					if(GraphSingleton.getInstance().getAttribute("tainted")){
+					Boolean isGraphTainted = GraphSingleton.getInstance().getAttribute("tainted");
+					if(isGraphTainted!=null && isGraphTainted){
 						
 						new CreateMovieProgressBar(viewer, view, frame);	
 					}
