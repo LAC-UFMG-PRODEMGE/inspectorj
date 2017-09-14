@@ -1,2 +1,1 @@
-﻿Não deveria criar aresta de controle para aux0 e para o printout
-a variavel aux1 esta sozinha e solta, deveria estar ligada na variavel da função phi tb. mesmo caso no test 11
+﻿Não deveria criar aresta de controle para o printout

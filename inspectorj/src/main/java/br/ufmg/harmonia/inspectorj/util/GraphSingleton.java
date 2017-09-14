@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
@@ -13,11 +14,7 @@ import java.util.Vector;
 import javax.imageio.ImageIO;
 import javax.media.MediaLocator;
 
-import org.graphstream.algorithm.randomWalk.Entity;
-import org.graphstream.algorithm.randomWalk.RandomWalk;
-import org.graphstream.algorithm.randomWalk.TabuEntity;
 import org.graphstream.graph.Edge;
-import org.graphstream.graph.Graph;
 import org.graphstream.graph.Node;
 import org.graphstream.graph.implementations.MultiGraph;
 import org.graphstream.stream.file.FileSinkImages;
@@ -30,12 +27,9 @@ import org.graphstream.stream.file.FileSinkImages.Resolutions;
 import org.graphstream.ui.graphicGraph.GraphPosLengthUtils;
 import org.graphstream.ui.graphicGraph.GraphicEdge;
 import org.graphstream.ui.graphicGraph.GraphicGraph;
-import org.graphstream.ui.spriteManager.Sprite;
-import org.graphstream.ui.spriteManager.SpriteManager;
 import org.graphstream.ui.swingViewer.DefaultView;
 import org.graphstream.ui.view.Viewer;
 
-import soot.G;
 import soot.Type;
 import soot.Value;
 import soot.tagkit.LineNumberTag;
@@ -43,7 +37,6 @@ import soot.tagkit.SourceLnNamePosTag;
 import soot.tagkit.Tag;
 import br.ufmg.harmonia.inspectorj.util.holder.LocalTypeHolder;
 import br.ufmg.harmonia.inspectorj.util.holder.MethodHolder;
-import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie;
 import br.ufmg.harmonia.inspectorj.util.movie.JpegImagesToMovie2;
 
 public class GraphSingleton extends MultiGraph {
@@ -57,7 +50,7 @@ public class GraphSingleton extends MultiGraph {
 	private String styleSheet;
 	private Map<Node,Object> map = new HashMap<Node,Object>(); 
 	private boolean movieCanceled = false;
-	private boolean habilitarVideo = false;
+	private boolean habilitarVideo = true;
 	//private DefaultView viewGraph;
 
 	private double step = 0;
@@ -101,6 +94,7 @@ public class GraphSingleton extends MultiGraph {
 	
 	private static Stack stack;
 	private static Stack stackIndex;
+	private static HashSet visiteds;
 
 	//Construtor
 	private GraphSingleton(String id) {
@@ -259,7 +253,7 @@ public class GraphSingleton extends MultiGraph {
 			//FileSinkImages arguments
 			if(myInstance.habilitarVideo == true){				
 				OutputPolicy outputPolicy = OutputPolicy.BY_STEP; 
-				String prefix = "images/prefix_";
+				String prefix = "images/movie/prefix_";
 				OutputType type = OutputType.PNG;
 //			Resolution resolution = Resolutions.NTSC;
 				Resolution resolution = Resolutions.HD720;
@@ -407,7 +401,7 @@ public class GraphSingleton extends MultiGraph {
 			edge = myInstance.addEdge(idEdge, dependencyNode, localNode, true);//.addAttribute("layout.weight", 2);
 			edge.addAttribute("tainted", false);
 		
-			myInstance.stepBegins(myInstance.getStep());
+			//myInstance.stepBegins(myInstance.getStep());
 			
 			if(!isControl){
 				Node taintedNode = InterproceduralResolver.getInstance().getMapUnitTaintedNode().get(dependencyNode.getId());
@@ -459,7 +453,7 @@ public class GraphSingleton extends MultiGraph {
 			localNode.addAttribute("sink", false);
 			localNode.addAttribute("tainted", false);
 			
-			myInstance.stepBegins(myInstance.getStep());
+			//myInstance.stepBegins(myInstance.getStep());
 		}
 		if(attributes!=null){
 			
@@ -532,6 +526,7 @@ public class GraphSingleton extends MultiGraph {
 		positionsTaintedNodes = new ArrayList<Position>();
 		stack = new Stack();
 		stackIndex = new Stack();
+		visiteds = new HashSet();
 		
 		//Coloca no array
 		getPositionOneNode(node, positionsTaintedNodes);
@@ -539,6 +534,7 @@ public class GraphSingleton extends MultiGraph {
 		//Coloca na pilha
 		stack.push(node);
 		stackIndex.push(0);
+		visiteds.add(node);
 		//Foca nos proximos nodes
 		getNextTaintedNode(node, realNode);	
 	}
@@ -554,8 +550,10 @@ public class GraphSingleton extends MultiGraph {
 				GraphicEdge graphicEdge = (GraphicEdge)edge;	
 				if(graphicEdge.from.equals(node)){
 					if((Integer)stackIndex.peek() >= 1) {
-						getPositionOneNode(node, positionsTaintedNodes);
-						System.out.println(node.getId());
+						if(!visiteds.contains(graphicEdge.to)){
+							getPositionOneNode(node, positionsTaintedNodes);
+							System.out.println(node.getId());							
+						}
 					}
 					if(edge.getAttribute("ui.class") != "taintedControl" && edge.getAttribute("ui.class") != "control") {
 						
@@ -566,17 +564,20 @@ public class GraphSingleton extends MultiGraph {
 								Node targetNode = edge.getTargetNode();
 								Node nextNode = copyGraphInstance.getNode(targetNode.getId());
 								realNode = getNode(targetNode.getId());
+								if(!visiteds.contains(nextNode)){
+									getPositionOneNode(nextNode, positionsTaintedNodes);
+									System.out.println(nextNode.getId());
+									stack.push(nextNode);
+									int aux = (Integer) stackIndex.peek();
+									aux++;
+									stackIndex.pop();
+									stackIndex.push(aux);
+									
+									stackIndex.push(0);
+									visiteds.add(nextNode);
+									getNextTaintedNode(nextNode, realNode);		
+								}
 								
-								getPositionOneNode(nextNode, positionsTaintedNodes);
-								System.out.println(nextNode.getId());
-								stack.push(nextNode);
-								int aux = (Integer) stackIndex.peek();
-								aux++;
-								stackIndex.pop();
-								stackIndex.push(aux);
-								
-								stackIndex.push(0);
-								getNextTaintedNode(nextNode, realNode);		
 							}
 						}	
 					}			
@@ -585,6 +586,7 @@ public class GraphSingleton extends MultiGraph {
 			Object n = stack.pop();
 			stackIndex.pop();
 			Node x = (Node) n;
+			visiteds.remove(x);
 			getPositionOneNode(x, positionsTaintedNodes);
 			System.out.println(x.getId());
 		}
@@ -620,7 +622,8 @@ public class GraphSingleton extends MultiGraph {
 		FileSinkImages images = myInstance.getFsi();
 	
 		//FileSinkImages arguments - começa a criar as imagens	
-		myInstance.startOfCreatingOfImages("tracking/images/prefix_");
+		myInstance.startOfCreatingOfImages("images/movie/prefix_");
+	//	images.setViewPercent(1);
 
 		//Pega o menor x e y e o maior x e y - ok
 		double xmin, xmax, ymin, ymax;
@@ -657,7 +660,7 @@ public class GraphSingleton extends MultiGraph {
 		
 		//seta o centro da tela
 		images.setViewCenter((xmax + xmin) / 2.0, (ymax + ymin) / 2.0);
-		images.setViewPercent(1);
+		images.setViewPercent(1.5);
 	
 		//move(x: centro da tela -> primeiro x| y: centro da tela -> primeiro y)
 		MoveCenterView move = new MoveCenterView(images, positionsTaintedNodes.get(0).x, positionsTaintedNodes.get(0).y, 30, true);
@@ -730,7 +733,7 @@ public class GraphSingleton extends MultiGraph {
 		//seta para voltar pra 100% de zoom
 		move = new MoveCenterView(images, (xmax + xmin) / 2.0, (ymax + ymin) / 2.0, 30, true);
 		
-		zoom = new DynamicCenterViewZoom(images, 1, 30, true);
+		zoom = new DynamicCenterViewZoom(images, 1.5, 30, true);
 
 		//cria imagens do grafo do ultimo nó para o centro da tela
 		for (int i = 0; i < 30; i++) {
@@ -775,7 +778,7 @@ public class GraphSingleton extends MultiGraph {
 		ConfigProperties configProperties = ConfigProperties.getInstance();
 
 		
-		File directory = new File("tracking/images");
+		File directory = new File("images/movie");
 		File[] listFiles = directory.listFiles();
 		Vector<String> inFiles = new Vector<String>();
 		String firstFile = null;

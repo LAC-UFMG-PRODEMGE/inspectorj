@@ -407,7 +407,7 @@ public class InterproceduralResolver {
 						Boolean isCondicional = taintedNode.getAttribute("condicional");
 						if(isCondicional!=null && isCondicional){
 							taintedNode.setAttribute("ui.class", "taintedCondicional");
-							graphInstance.stepBegins(graphInstance.getStep());
+							//graphInstance.stepBegins(graphInstance.getStep());
 							
 							//Contabiliza a quantidade nodos contaminados
 							Integer qtde = numberOfConditionalNode.get(prefixFull);
@@ -417,12 +417,12 @@ public class InterproceduralResolver {
 							Boolean isSecret = taintedNode.getAttribute("secret");
 							if(isSecret!=null && isSecret) {
 								taintedNode.setAttribute("ui.class", "taintedSecret");
-								graphInstance.stepBegins(graphInstance.getStep());														
+								//graphInstance.stepBegins(graphInstance.getStep());														
 							} else {
 								Boolean isPrintout = taintedNode.getAttribute("printout");
 								if(isPrintout!=null && isPrintout) {
 									taintedNode.setAttribute("ui.class", "taintedPrintout");
-									graphInstance.stepBegins(graphInstance.getStep());
+									//graphInstance.stepBegins(graphInstance.getStep());
 									
 									//Contabiliza a quantidade nodos contaminados
 									Integer qtde = numberOfPrintoutNode.get(prefixFull);
@@ -431,7 +431,7 @@ public class InterproceduralResolver {
 									Boolean isCommandInjection = taintedNode.getAttribute("commandinjection");
 									if(isCommandInjection!=null && isCommandInjection) {
 										taintedNode.setAttribute("ui.class", "taintedCommandinjection");
-										graphInstance.stepBegins(graphInstance.getStep());
+										//graphInstance.stepBegins(graphInstance.getStep());
 										
 										//Contabiliza a quantidade nodos contaminados
 										Integer qtde = numberOfCommandNode.get(prefixFull);
@@ -440,7 +440,7 @@ public class InterproceduralResolver {
 									}
 									else {
 										taintedNode.setAttribute("ui.class", "tainted");
-										graphInstance.stepBegins(graphInstance.getStep());
+										//graphInstance.stepBegins(graphInstance.getStep());
 									}
 								}
 							}
@@ -477,7 +477,7 @@ public class InterproceduralResolver {
 							taintedEdge.setAttribute("ui.class", "tainted");
 						}
 						
-						graphInstance.stepBegins(graphInstance.getStep());
+						//graphInstance.stepBegins(graphInstance.getStep());
 					}
 				}
 			}
@@ -495,8 +495,7 @@ public class InterproceduralResolver {
 		}
 	}
 
-	protected void writeOnOriginalClass(
-			List<MethodInvocationHolder> miInvocation, Node taintedNode) {
+	protected void writeOnOriginalClass(List<MethodInvocationHolder> miInvocation, Node taintedNode) {
 		if(miInvocation!=null){
 			
 			
@@ -593,6 +592,7 @@ public class InterproceduralResolver {
 									Object tainted = next.getAttribute("tainted");
 									if(Boolean.TRUE.equals(tainted)){
 										String classNode = next.toString().split("-")[0];
+										String methodNode = next.toString().split("-")[1].split(":")[0];
 										Integer linePositionSaved = classeMarked.get(classNode);//Verifica se já foi incluido essa marcação para não repetir a classe bloqueada
 										if(linePositionSaved == null || linePosition != linePositionSaved.intValue() ){											
 											String[] array = nodeMethod.toString().split(":");
@@ -600,7 +600,8 @@ public class InterproceduralResolver {
 											list.add(linePosition - 1 + offSet,
 												//	"/*"+ 
 														" if("+variable+ " instanceof  " + classNode+ "){ "
-															+ "throw new java.lang.Exception(\"A flaw Detected in ["+nodeParamInside.toString().split(":")[0]+"] \");"
+														    + "throw new java.lang.RuntimeException(\"A flaw Detected in ["+classNode+"-"+ methodNode+"] \");"
+//															+ "throw new java.lang.RuntimeException(\"A flaw Detected in ["+nodeParamInside.toString().split(":")[0]+"] \");"
 													 +  " }"
 												//					+ "*/"
 															);

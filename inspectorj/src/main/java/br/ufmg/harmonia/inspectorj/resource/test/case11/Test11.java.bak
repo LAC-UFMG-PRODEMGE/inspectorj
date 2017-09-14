@@ -1,0 +1,24 @@
+package br.ufmg.harmonia.inspectorj.resource.test.case11;
+/*
+ * Goal: check if we can track explict flows merged inside a switch.
+ * Usage: java T11 <int>
+ * Expected result: LEAK
+ */
+import java.util.Random;
+
+public class Test11 {
+  public static void main(String args[]) {
+    int aux0 = Integer.parseInt(args[0]);
+    int aux1 = 0;
+    switch (aux0) {
+      case 1: aux1 = 1; break;
+      case 2: aux1 = 2; break;
+      case 3: aux1 = 3; break;
+      default: {
+                 int SECRET = (new Random()).nextInt();
+                 aux1 = SECRET;
+               }
+    }
+    System.out.println(aux1);
+  }
+}

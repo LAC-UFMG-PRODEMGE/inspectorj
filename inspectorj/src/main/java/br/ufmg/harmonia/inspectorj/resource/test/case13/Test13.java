@@ -1,5 +1,4 @@
 package br.ufmg.harmonia.inspectorj.resource.test.case13;
-
 import java.util.Random;
 
 class Helper {
@@ -20,14 +19,10 @@ class Secret {
 }
 
 public class Test13 {
-
-		
 	  public static void main(String args[]) {
-	    
 	    Helper aux0 = new Helper();
 	    Secret aux1 = new Secret();
 	    aux0.set(aux1.get());
 	    System.out.println(aux0.get());
-	  }
-		
+	  }		
 }

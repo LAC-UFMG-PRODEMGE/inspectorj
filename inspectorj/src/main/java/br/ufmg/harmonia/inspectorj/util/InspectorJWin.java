@@ -148,21 +148,45 @@ public class InspectorJWin extends JFrame {
 		buttonTirarPrint.addActionListener(new ActionListener() {
 
 			public void actionPerformed(ActionEvent e) {
-			
-				 FileSinkImages pic = GraphSingleton.getInstance().getFsi();
-				 
-				 GraphicGraph copyGraphInstance = viewer.getGraphicGraph();	
-				 
-				 ConfigProperties configProperties = ConfigProperties.getInstance();
-					
-				 try {
-					pic.writeAll(copyGraphInstance, configProperties.getString("diretorio.saida")+"/image.png");
-					JFrame f = new JFrame();
-        			JOptionPane.showMessageDialog(f,"A imagem foi salva com sucesso!");
-				} catch (IOException e1) {
+				Thread t = new Thread();
+				
+				//congelar
+				viewer.disableAutoLayout();
+
+				//descongelar
+				viewer.enableAutoLayout();
+				try {
+					t.sleep(500);
+				} catch (InterruptedException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
-				}	      
+				}
+								
+				ConfigProperties configProperties = ConfigProperties.getInstance();
+				
+				FileSinkImages pic = GraphSingleton.getInstance().getFsi();
+				
+				GraphSingleton.getInstance().startOfCreatingOfImages(configProperties.getString("diretorio.saida")+"/image");
+				GraphSingleton.getInstance().stepBegins(GraphSingleton.getInstance().getStep());
+				GraphSingleton.getInstance().endOfCreatingOfImages();
+				
+				JFrame f = new JFrame();
+    			JOptionPane.showMessageDialog(f,"A imagem foi salva com sucesso!");
+			
+//				 FileSinkImages pic = GraphSingleton.getInstance().getFsi();
+//				 
+//				 GraphicGraph copyGraphInstance = viewer.getGraphicGraph();	
+//				 
+//				 ConfigProperties configProperties = ConfigProperties.getInstance();
+//					
+//				 try {
+//					pic.writeAll(copyGraphInstance, configProperties.getString("diretorio.saida")+"/image.png");
+//					JFrame f = new JFrame();
+//        			JOptionPane.showMessageDialog(f,"A imagem foi salva com sucesso!");
+//				} catch (IOException e1) {
+//					// TODO Auto-generated catch block
+//					e1.printStackTrace();
+//				}	      
 			}
 		});
 		
@@ -224,7 +248,27 @@ public class InspectorJWin extends JFrame {
 					//Se o grafo estiver contaminado, gera o video
 					Boolean isGraphTainted = GraphSingleton.getInstance().getAttribute("tainted");
 					if(isGraphTainted!=null && isGraphTainted){
+						view.getCamera().setViewPercent(1.5);
 						
+						Thread t = new Thread();
+					
+						//congelar
+						viewer.disableAutoLayout();
+						try {
+							t.sleep(1000);
+						} catch (InterruptedException e2) {
+							// TODO Auto-generated catch block
+							e2.printStackTrace();
+						}
+						//descongelar
+						viewer.enableAutoLayout();
+						try {
+							t.sleep(1500);
+						} catch (InterruptedException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+
 						new CreateMovieProgressBar(viewer, view, frame);	
 					}
 					else{

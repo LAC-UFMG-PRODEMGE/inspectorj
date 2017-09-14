@@ -9,6 +9,7 @@ public class Main {
 		//if (!(o instanceof T))
 		//	throw new Error("Unsafe code");
 		// END AUTOMATIC CODE.
+
 		o.leak(secret);
 	}
 }
