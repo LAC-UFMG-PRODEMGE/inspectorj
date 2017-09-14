@@ -1,88 +1,52 @@
-# InspectorJ - Program 
+InspectorJ
+========================
+https://github.com/LAC-UFMG-PRODEMGE/inspectorj
 
-The goal of this project is to implement a system to track the propagation of information throughout the code of a program. To this end, we use the Soot framework for code analysis and optimization.
+* Java 7+
+* Soot Framework
+* Graphstream
 
-## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+Prerequisites
+-------------------
 
-### Prerequisites
+Ensure you have JDK 7 (or newer) installed
 
-What things you need to install the software and how to install them
+    java -version
 
-```
-Give examples
-```
+Ensure you have Eclipse kepler (or newer) installed
 
-### Installing
+	https://www.eclipse.org/downloads/?
 
-A step by step series of examples that tell you have to get a development env running
 
-Say what the step will be
+Building
+-------------------
 
-```
-Give the example
-```
+First of all you need to download the inspectorj application and import it to eclipse project
 
-And repeat
+	git clone https://github.com/LAC-UFMG-PRODEMGE/inspectorj.git
+	
+InspectorJ application depends on **Soot** project, so you need to download it and import it to eclipse project
 
-```
-until finished
-```
+	git clone https://github.com/Sable/soot.git
+	
+Soot depends on two projects: **Heros** and **Jasmin**, so you also need to download it and import it to eclipse project
 
-End with an example of getting some data out of the system or using it for a little demo
+	git clone https://github.com/Sable/heros.git
+	git clone https://github.com/Sable/jasmin.git
+	
+> P.S. InspectorJ uses **Lipstick Look and Feel** library to build its visual frame. You should put it in the project build path. The jar can be found at `inspectorj/lib` 
 
-## Running the tests
+	
 
-Explain how to run the automated tests for this system
+Running
+-------------------
 
-### Break down into end to end tests
+To start InspectorJ process, you need to run the method `main` of `br.ufmg.harmonia.inspectorj.InspectorSTPMain`.
 
-Explain what these tests test and why
+	java br.ufmg.harmonia.inspectorj.InspectorSTPMain
 
-```
-Give an example
-```
+InspectorJ will ask you the properties 
 
-### And coding style tests
 
-Explain what these tests test and why
-
-```
-Give an example
-```
-
-## Deployment
-
-Add additional notes about how to deploy this on a live system
-
-## Built With
-
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
-
-## Versioning
-
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
-
-## Authors
-
-* **Billie Thompson** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
-
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
-## Acknowledgments
-
-* Hat tip to anyone who's code was used
-* Inspiration
-* etc
 
