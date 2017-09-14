@@ -531,7 +531,7 @@ public class InterproceduralResolver {
 					ConfigProperties properties = ConfigProperties
 							.getInstance();
 					String[] dirs = properties.getString(
-							"classpath").split(";");
+							"classpath").split(":");
 					File fileJava = null;
 					boolean founded = false;
 					for (String directory : dirs) {

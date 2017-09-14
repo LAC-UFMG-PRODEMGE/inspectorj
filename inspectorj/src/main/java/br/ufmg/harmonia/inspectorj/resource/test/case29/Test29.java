@@ -7,7 +7,8 @@ public class Test29 {
 	public static void main(String[] args) {
 		try {
 			String command = args[0];
-			Runtime.getRuntime().exec(command);
+			Runtime runtime = Runtime.getRuntime();
+			runtime.exec(command);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
